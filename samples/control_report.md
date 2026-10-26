@@ -1,6 +1,6 @@
 # Agent & Non-Human Identity Posture Report
 
-**Generated:** 2026-10-26 07:41 UTC  
+**Generated:** 2026-10-26 22:57 UTC  
 **Tenant read:** 10/26/2026 07:41:10 (0 h before the findings were classified)  
 **Identities with findings:** 28  
 **Controls assessed:** 13
@@ -264,7 +264,7 @@ than one honestly scoped.
 | Whether the agent was approved before creation | No approval record exists in Graph. This is a process control. |
 | Whether the identity handles regulated data | Data classification is not an identity property. |
 | Whether the assigned owner is the *right* owner | Graph records who the owner is, not whether that is appropriate. |
-| What the agent does when invoked | Behaviour is not an identity attribute. Runtime monitoring - out of scope for v1.0. |
+| What the agent does when invoked | Behaviour is not an identity attribute. Runtime monitoring - out of scope for a directory-data assessment. |
 
 ## Method and limitations
 
