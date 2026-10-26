@@ -178,6 +178,32 @@ PowerShell 7+, and the `Microsoft.Graph.Authentication`, `Microsoft.Graph.Applic
 `Microsoft.Graph.Identity.DirectoryManagement` modules. Read scopes:
 `Application.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`.
 
+## Responsible use
+
+**Run this only against a tenant you own or have been explicitly asked to assess.** It enumerates
+every non-human identity in a directory along with its owners, credentials and granted
+permissions. That output is a reconnaissance document, which is why `output/` is git-ignored, why
+the scheduled workflow publishes counts rather than data, and why `samples/` is sanitised and
+verified before it is written.
+
+**One script writes to a tenant.** `99-New-LabFixture.ps1` requires `Application.ReadWrite.All` —
+a permission this tool itself reports as **Critical** — and deliberately creates an imperfect
+ownership distribution so every rule has something to fire on. It is for **lab tenants only**. It
+is excluded from the scheduled workflow and should never be run from a pipeline.
+
+**The findings here are n=1.** Everything in *What it found* was measured in a single tenant, with
+one agent of each class, built by one agent builder. They are reported as *observed here*, not as
+statements about how Microsoft Entra behaves generally. Where a conclusion was later withdrawn,
+`TROUBLESHOOTING.md` says so rather than quietly correcting it.
+
+**Not affiliated with Microsoft.** "Microsoft", "Entra" and related names are trademarks of
+Microsoft Corporation, used here only to identify the platform this tool reads. This project is
+independent and is not endorsed by, sponsored by, or connected to Microsoft.
+
+**No warranty.** See the MIT licence below. Review the scripts before running them anywhere that
+matters — which is advice you should take for any tool that asks for `Directory.Read.All`,
+including this one.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
