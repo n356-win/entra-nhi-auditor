@@ -1,0 +1,622 @@
+{
+  "GeneratedUtc": "2026-10-26T07:41:10.9767458Z",
+  "InventoryPath": "C:\\Users\\nicol\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\1b52dae6-bd29-476f-8c32-8f74110b9e88\\06be2220-c5f7-4a00-8090-a91d3649294c\\local_50c1cc70-a63f-40c7-81ae-6c6e10d1817d\\outputs\\IAM-PROGRAM\\03-LAB-Entra-NHI-Agent-Governance\\scripts\\..\\output\\runs\\2026-10-26T07-39Z\\nhi_inventory.json",
+  "InventoryGeneratedUtc": "2026-10-26T07:41:10.8640238Z",
+  "InventoryAgeHours": 0.0,
+  "Population": {
+    "AgentObjectsTotal": 3,
+    "WithFindings": 28,
+    "AgentIdentities": 2,
+    "ManagedIdentities": 1,
+    "Applications": 17,
+    "Clean": 9,
+    "ServicePrincipals": 325,
+    "Assessed": 37,
+    "AgentsDistinct": 3,
+    "AgentIdentityObjectIds": [
+      {
+        "ODataType": "#microsoft.graph.agentIdentity",
+        "SpType": "ServiceIdentity",
+        "Id": "703da058-27c8-4aa9-8da7-9ddbd5a3bbbf",
+        "DisplayName": "agent-blueprint-root"
+      },
+      {
+        "ODataType": "#microsoft.graph.agentIdentity",
+        "SpType": "ServiceIdentity",
+        "Id": "568b673e-cfef-4563-8957-da50e4781881",
+        "DisplayName": "agent-collab-assistant"
+      }
+    ],
+    "ExternalSkipped": 305,
+    "TotalIdentities": 342,
+    "AgentsSpSecured": 1
+  },
+  "Parameters": {
+    "IaCStateChecked": false,
+    "LongLivedSecretDays": 180,
+    "DormancyDays": 90,
+    "IaCDeclaredCount": null
+  },
+  "Findings": [
+    {
+      "DisplayName": "svc-identity-scanner",
+      "AppId": "0b5c19cc-6554-46a7-8ec4-bf93c3094137",
+      "ObjectId": "0b3e74f4-4531-40c1-86b7-86baba6f0c08",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person02@contoso.example; person01@contoso.example; person03@contoso.example",
+      "TopSeverity": "Critical",
+      "Findings": [
+        {
+          "Code": "ORPHANED_OWNER",
+          "Severity": "Critical",
+          "Detail": "Assigned owner account is disabled. Appears governed but is not."
+        }
+      ]
+    },
+    {
+      "DisplayName": "agent-blueprint-root",
+      "AppId": "703da058-27c8-4aa9-8da7-9ddbd5a3bbbf",
+      "ObjectId": "703da058-27c8-4aa9-8da7-9ddbd5a3bbbf",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": true,
+      "AgentClass": "AgentIdentity",
+      "Owner": "person02@contoso.example",
+      "TopSeverity": "Info",
+      "Findings": [
+        {
+          "Code": "AGENT_SPONSORED",
+          "Severity": "Info",
+          "Detail": "Agent identity with 1 sponsor(s): person02@contoso.example. This is the accountable human for attestation purposes - distinct from the technical owner."
+        }
+      ]
+    },
+    {
+      "DisplayName": "automation-acct-01",
+      "AppId": "a4ce5241-a60b-468b-82e2-0aa1918bf210",
+      "ObjectId": "a7348710-92af-4de3-8f51-86be92d8903a",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "ManagedIdentity",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "Info",
+      "Findings": [
+        {
+          "Code": "MI_OWNERSHIP_NOT_IN_GRAPH",
+          "Severity": "Info",
+          "Detail": "Managed identity. Accountability is held as Azure RBAC on the parent resource, which Person 67 cannot see. Not assessed: re-run 01-Get-NHIInventory.ps1 with -IncludeAzureRbac and an ARM access token to resolve it, or verify manually in Azure IAM on the parent resource."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-sso-secondary",
+      "AppId": "418eccbb-3d2a-49c2-8a77-aa9079e2ac07",
+      "ObjectId": "fd9136ae-584c-4b5a-86b3-fefb71d10d67",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person01@contoso.example",
+      "TopSeverity": "Medium",
+      "Findings": [
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Password valid for a further 1028 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1028 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1028 days - exceeds the 180 day policy."
+        }
+      ]
+    },
+    {
+      "DisplayName": "automation-acct-01",
+      "AppId": "9ae0a3e6-85eb-4eb0-8712-7d31a5cbb635",
+      "ObjectId": "b2ab8ffa-28e0-4320-8165-9ec549a5a64a",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person05@contoso.example",
+      "TopSeverity": "Critical",
+      "Findings": [
+        {
+          "Code": "ORPHANED_OWNER",
+          "Severity": "Critical",
+          "Detail": "Assigned owner account is disabled. Appears governed but is not."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-sso-primary",
+      "AppId": "c45fa0b8-d9b1-4ee6-894c-a663dd67fe4a",
+      "ObjectId": "e931d10e-3529-418e-8e00-58ab75bfda78",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person05@contoso.example",
+      "TopSeverity": "Critical",
+      "Findings": [
+        {
+          "Code": "ORPHANED_OWNER",
+          "Severity": "Critical",
+          "Detail": "Assigned owner account is disabled. Appears governed but is not."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Password valid for a further 1001 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1001 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1001 days - exceeds the 180 day policy."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-cloud-identity-center",
+      "AppId": "fdbad3b2-07b0-4a81-8fe3-709801b6e044",
+      "ObjectId": "b097b36b-8ef3-43a3-80b2-df5ff0152cc8",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person05@contoso.example",
+      "TopSeverity": "Critical",
+      "Findings": [
+        {
+          "Code": "ORPHANED_OWNER",
+          "Severity": "Critical",
+          "Detail": "Assigned owner account is disabled. Appears governed but is not."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Password valid for a further 1037 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1037 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 1037 days - exceeds the 180 day policy."
+        }
+      ]
+    },
+    {
+      "DisplayName": "agent-collab-assistant",
+      "AppId": "568b673e-cfef-4563-8957-da50e4781881",
+      "ObjectId": "568b673e-cfef-4563-8957-da50e4781881",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": true,
+      "AgentClass": "AgentIdentity",
+      "Owner": "person02@contoso.example",
+      "TopSeverity": "Info",
+      "Findings": [
+        {
+          "Code": "AGENT_SPONSORED",
+          "Severity": "Info",
+          "Detail": "Agent identity with 1 sponsor(s): person02@contoso.example. This is the accountable human for attestation purposes - distinct from the technical owner."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-hcm-connector",
+      "AppId": "e20bd5da-d407-4b30-8c14-ba91862a4bed",
+      "ObjectId": "e8eb98b0-2c65-41b9-8a6a-f68a4fd6db10",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_OWNER",
+          "Severity": "High",
+          "Detail": "No owner assigned. Nobody can attest to this identity."
+        }
+      ]
+    },
+    {
+      "DisplayName": "aad-extensions-app. Do not modify. Used by AAD for storing user data.",
+      "AppId": "fa450f3c-2d82-4478-8bdb-1a8c4831a7c5",
+      "ObjectId": "8679379d-248c-4b13-8cf0-657c878aac38",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_OWNER",
+          "Severity": "High",
+          "Detail": "No owner assigned. Nobody can attest to this identity."
+        }
+      ]
+    },
+    {
+      "DisplayName": "agent-alerts (Microsoft Copilot Studio)",
+      "AppId": "bb09e682-6738-47e5-8f8c-ee413010d47c",
+      "ObjectId": "02767632-08ad-4f76-8cee-d7b778c2303d",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": true,
+      "AgentClass": "SpSecured",
+      "Owner": "person02@contoso.example; Person 59",
+      "TopSeverity": "Medium",
+      "Findings": [
+        {
+          "Code": "SP_SECURED_AGENT",
+          "Severity": "Medium",
+          "Detail": "Agent secured by an application service principal rather than an agent identity. No sponsor requirement applies, so nothing guarantees an accountable human."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-provisioning-v2",
+      "AppId": "b5493f3c-3dd8-4f39-8fd6-733a6d17b7da",
+      "ObjectId": "8036d9a1-d341-4bc9-8fc2-c01c89fd7b2e",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "svc-legacy-app",
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_HUMAN_OWNER",
+          "Severity": "High",
+          "Detail": "Owned only by a service principal (svc-legacy-app). The ownership field is populated, so this identity APPEARS governed on any dashboard - but there is no human to answer an attestation request. Worse than having no owner at all, because it does not look like a gap. Assign a named human owner."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-cloud-sso",
+      "AppId": "8c145be4-19d4-43d7-84c5-2581565a4efd",
+      "ObjectId": "6b81b4f4-b4d8-4e87-8daa-62b1d2490ff9",
+      "ObjectClass": "ServicePrincipal",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_OWNER",
+          "Severity": "High",
+          "Detail": "No owner assigned. Nobody can attest to this identity."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-hcm-connector",
+      "AppId": "e20bd5da-d407-4b30-8c14-ba91862a4bed",
+      "ObjectId": "11b1eddc-6d5b-4c10-8f10-6decfbf58c94",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "automation-acct-01",
+      "AppId": "9ae0a3e6-85eb-4eb0-8712-7d31a5cbb635",
+      "ObjectId": "29d117af-7d4c-40ac-82bc-94de058c0ab9",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 316 days - exceeds the 180 day policy."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-hr-provisioning",
+      "AppId": "917b3b47-7100-445b-8ec7-db14de65d167",
+      "ObjectId": "943b59f7-0813-47ba-82f2-551cbc3181a7",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Certificate valid for a further 317 days - exceeds the 180 day policy."
+        }
+      ]
+    },
+    {
+      "DisplayName": "agent-alerts (Microsoft Copilot Studio)",
+      "AppId": "bb09e682-6738-47e5-8f8c-ee413010d47c",
+      "ObjectId": "9bef1938-e85c-49e8-8b5d-754fe1294d28",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": "person02@contoso.example; Person 59",
+      "TopSeverity": "Info",
+      "Findings": [
+        {
+          "Code": "FEDERATED_CRED",
+          "Severity": "Info",
+          "Detail": "Uses workload identity federation (2 credential(s)) - no stored secret. Good practice."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-identity-scanner",
+      "AppId": "0b5c19cc-6554-46a7-8ec4-bf93c3094137",
+      "ObjectId": "c774c0ab-527b-49b9-8a4d-ae130869c1d0",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "FEDERATED_CRED",
+          "Severity": "Info",
+          "Detail": "Uses workload identity federation (1 credential(s)) - no stored secret. Good practice."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-cloud-sso",
+      "AppId": "8c145be4-19d4-43d7-84c5-2581565a4efd",
+      "ObjectId": "fd2247d5-186b-4694-8fad-913412b0ee60",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-legacy-app",
+      "AppId": "0c951c28-293f-40f6-8206-fc7c1c1ed232",
+      "ObjectId": "244d40b3-8846-4ff1-877f-5e79445a5df0",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "CRED_LONG_LIVED",
+          "Severity": "Medium",
+          "Detail": "Password valid for a further 729 days - exceeds the 180 day policy."
+        },
+        {
+          "Code": "SECRET_OVER_CERT",
+          "Severity": "Low",
+          "Detail": "Uses a client secret where a certificate or federated credential would be stronger."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-inbound-provisioning",
+      "AppId": "a6ce9bcf-11e6-4feb-87d5-d571119bc028",
+      "ObjectId": "7e726af9-f3ac-4eda-8f52-f1188c481eb7",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-provisioning-v2",
+      "AppId": "b5493f3c-3dd8-4f39-8fd6-733a6d17b7da",
+      "ObjectId": "2bdf3862-9103-4b4b-8e5d-9bc487346767",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-sso-secondary",
+      "AppId": "418eccbb-3d2a-49c2-8a77-aa9079e2ac07",
+      "ObjectId": "bcd1471a-f977-4a1b-8a9f-bb509e16371d",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-secrets-broker",
+      "AppId": "7557560f-423b-4036-87fb-3d0e7a8d3016",
+      "ObjectId": "f566f90e-510d-42eb-85db-4eeccb842a99",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "SECRET_OVER_CERT",
+          "Severity": "Low",
+          "Detail": "Uses a client secret where a certificate or federated credential would be stronger."
+        }
+      ]
+    },
+    {
+      "DisplayName": "aad-extensions-app. Do not modify. Used by AAD for storing user data.",
+      "AppId": "fa450f3c-2d82-4478-8bdb-1a8c4831a7c5",
+      "ObjectId": "123038c1-6ded-4099-8765-addb0e0e5133",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-sso-primary",
+      "AppId": "c45fa0b8-d9b1-4ee6-894c-a663dd67fe4a",
+      "ObjectId": "6c3666f2-12a6-47ca-8388-5c64f75fb76c",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-cloud-identity-center",
+      "AppId": "fdbad3b2-07b0-4a81-8fe3-709801b6e044",
+      "ObjectId": "cfbff0ea-b047-4917-8bcd-ea06856fa0d1",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        }
+      ]
+    },
+    {
+      "DisplayName": "svc-secrets-broker-legacy",
+      "AppId": "2a9fc4ad-3298-4a0c-8d8a-a972cb89a50a",
+      "ObjectId": "be4962c2-df6e-4d63-8458-4fdac24b4d6c",
+      "ObjectClass": "Application",
+      "Classification": "TenantOwned",
+      "IsAgent": false,
+      "AgentClass": null,
+      "Owner": null,
+      "TopSeverity": "High",
+      "Findings": [
+        {
+          "Code": "NO_APP_REGISTRATION_OWNER",
+          "Severity": "High",
+          "Detail": "App registration with no owner. Nobody is accountable for this application's CREDENTIALS and requested permissions - who may add a client secret or request broader API access. This is credential custody, not access attestation: the matching service principal is the object that holds the access and is attested separately."
+        },
+        {
+          "Code": "SECRET_OVER_CERT",
+          "Severity": "Low",
+          "Detail": "Uses a client secret where a certificate or federated credential would be stronger."
+        }
+      ]
+    }
+  ]
+}
+

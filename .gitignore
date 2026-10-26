@@ -1,0 +1,29 @@
+# Real tenant output - NEVER publish. Add this before your first commit.
+#
+# output/ covers everything, including the dated run and cycle directories added 25 Oct 2026:
+#   output/runs/<timestamp>/      one scan
+#   output/attestation/<quarter>/ one attestation cycle
+#   output/latest-run.txt         pointer to the current run
+#
+# The filename patterns below are belt-and-braces. They catch a file that escaped output/ -
+# which happens when someone runs a script with an explicit -OutputPath to "just look at
+# something quickly" and forgets where it landed.
+output/
+*_inventory.json
+*_ownership.csv
+*_findings.json
+attestation_records.json
+attestation_results.json
+attestation_report.md
+control_report.md
+cycle.json
+latest-run.txt
+agent_surface_notes.md
+
+# Sanitised fixtures are the EXCEPTION and are meant to be published. Fabricated names and
+# GUIDs only - this is what lets someone run the tool without a tenant.
+!samples/**
+
+# Local
+.secrets/
+*.local.ps1

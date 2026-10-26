@@ -1,0 +1,230 @@
+# =============================================================================
+# Weekly non-human identity scan
+# =============================================================================
+# Runs 01 -> 03 -> 05 read-only against the tenant and opens an issue when the posture
+# changes. No secret exists anywhere in this file or in the repository.
+#
+# WHAT THIS WORKFLOW DELIBERATELY DOES NOT DO, and each one is a decision:
+#
+#   1. It NEVER uploads scan output as an artifact. nhi_inventory.json is a complete map of
+#      every non-human identity in the tenant, its owners and its permissions - a reconnaissance
+#      document. GitHub artifacts are downloadable by anyone with read access to the repo, and
+#      on a public repo that is everyone. The scan runs in the pipeline; the DATA stays there.
+#
+#   2. It never runs 04 (attestation). That writes records addressed to people and belongs to
+#      a human-initiated quarterly cycle, not a cron job.
+#
+#   3. It never runs 99 (lab fixture). That script needs Application.ReadWrite.All and
+#      Directory.ReadWrite.All - the exact permissions 03 reports as Critical. The auditor
+#      stays read-only; remediation runs under a human with PIM activation.
+#
+#   4. It holds NO write permission at all. 00b-Connect-Pipeline.ps1 refuses to continue if
+#      the token carries one, so a mis-granted permission fails the run instead of using it.
+#
+# CADENCE. Scan weekly, discover once, attest quarterly. A daily scan of an estate that
+# changes monthly produces noise that nobody reads by week three.
+
+name: NHI scan
+
+on:
+  schedule:
+    # 06:00 UTC Monday. Deliberately not midnight: a failure should land where someone will
+    # see it during the working day rather than sit red all weekend.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:        # manual runs, for when you actually want one
+
+permissions:
+  # id-token: write is what mints the OIDC token for the federated credential exchange. It is
+  # the ONLY write in this file and it grants nothing in Entra by itself.
+  id-token: write
+  contents: read
+  issues: write             # to raise an issue when the posture changes
+
+concurrency:
+  # Two overlapping scans would write two run directories and race on latest-run.txt.
+  group: nhi-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    env:
+      # IDENTIFIERS, NOT SECRETS. Both are visible in any token this app issues, so storing
+      # them as repo secrets implies a confidentiality they do not have and makes them harder
+      # to audit. Repo VARIABLES is the correct home.
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Microsoft Graph PowerShell
+        shell: pwsh
+        run: |
+          # Sub-modules only. The full Microsoft.Graph meta-module is ~40 modules and several
+          # minutes of install time; these three are what 01/03/05 actually call.
+          Install-Module Microsoft.Graph.Authentication  -Force -Scope CurrentUser -AllowClobber
+          Install-Module Microsoft.Graph.Applications    -Force -Scope CurrentUser -AllowClobber
+          Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -Scope CurrentUser -AllowClobber
+
+      - name: Connect to Graph (workload identity federation)
+        shell: pwsh
+        env:
+          # Requesting the OIDC token requires both of these. The audience must match the
+          # federated credential configured in Entra.
+          ACTIONS_ID_TOKEN_REQUEST_URL:   ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        run: |
+          ./scripts/00b-Connect-Pipeline.ps1 `
+            -ClientId $env:AZURE_CLIENT_ID `
+            -TenantId $env:AZURE_TENANT_ID
+
+      # ---------------------------------------------------------------------------------
+      # THE PIPELINE. One RunId threaded through all three scripts.
+      #
+      # This is the part that answers "does the Action follow the run-directory structure?".
+      # Script 01 defaults RunId to a UTC timestamp and writes output/latest-run.txt, and 03
+      # and 05 read that pointer - but relying on the pointer inside CI is fragile, because a
+      # concurrent run or a retried step would move it underneath the later steps. The RunId
+      # is computed ONCE here and passed explicitly to all three, so a run is atomic by
+      # construction rather than by timing.
+      # ---------------------------------------------------------------------------------
+      - name: Scan
+        id: scan
+        shell: pwsh
+        run: |
+          # Calls the SAME orchestrator a human runs locally, rather than re-listing the
+          # stages here. Two copies of the pipeline order is two places to forget a stage -
+          # and the local copy is the one that gets updated.
+          #
+          # No -IncludeAttestation: attestation is a QUARTERLY cycle, this runs weekly, and a
+          # cron job that opens an access-review cycle every Monday makes the cadence
+          # meaningless. -Anonymise because the report reaches a job summary.
+          ./scripts/Invoke-Pipeline.ps1 -Anonymise
+
+          # Recover the run id the pipeline chose, so later steps point at the right place.
+          # latest-run.txt holds the RUN ID ("2026-10-26T04-47Z"), not a directory path -
+          # script 01 writes `$RunId | Set-Content`. Treating it as a path silently yields a
+          # RUN_DIR that does not exist, and the summary step then reads nothing and reports
+          # zero findings. A wrong path that produces an empty result rather than an error is
+          # the exact shape of bug this project keeps finding.
+          $runId  = (Get-Content output/latest-run.txt -Raw).Trim()
+          $runDir = "output/runs/$runId"
+
+          if (-not (Test-Path "$runDir/control_report.md")) {
+            throw "Resolved run directory '$runDir' has no control_report.md. latest-run.txt said '$runId'."
+          }
+
+          "RUN_ID=$runId"   | Out-File $env:GITHUB_ENV -Append
+          "RUN_DIR=$runDir" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Summarise to the job log
+        shell: pwsh
+        run: |
+          # -Anonymise was passed to 05, so this report carries Identity-001 style labels and
+          # no tenant names. That is what makes it safe to put in a job summary, which on a
+          # public repo is world-readable. Counts and control outcomes travel; names do not.
+          $report = Get-Content "$env:RUN_DIR/control_report.md" -Raw
+
+          $findings = (Get-Content "$env:RUN_DIR/nhi_findings.json" -Raw | ConvertFrom-Json).Findings
+          $crit = @($findings | Where-Object TopSeverity -eq 'Critical').Count
+          $high = @($findings | Where-Object TopSeverity -eq 'High').Count
+          "CRIT_COUNT=$crit" | Out-File $env:GITHUB_ENV -Append
+          "HIGH_COUNT=$high" | Out-File $env:GITHUB_ENV -Append
+
+          @"
+          ## NHI scan $env:RUN_ID
+
+          | Severity | Identities |
+          |---|---|
+          | Critical | $crit |
+          | High | $high |
+
+          <details><summary>Anonymised control report</summary>
+
+          $report
+
+          </details>
+          "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+      # NOTE: there is deliberately NO actions/upload-artifact step here.
+      # See the header. The scan output never leaves the runner.
+
+      # WEEKLY HEARTBEAT, not just an alarm.
+      #
+      # An issue raised ONLY on Critical findings cannot distinguish "a clean week" from "the
+      # workflow did not run". Both look like silence in your inbox, and the second is the one
+      # you need to know about - a scanner that has quietly stopped reports a perfect tenant.
+      #
+      # This is the same absence-reads-as-success failure the reports kept producing. The fix
+      # is the same: say something every time, and make the clean case explicit.
+      #
+      # Email comes from GitHub's own notifications - watch the repo and every issue reaches
+      # you. DELIBERATELY NOT Graph sendMail: that needs Mail.Send, a WRITE permission, and
+      # 00b-Connect-Pipeline.ps1 refuses to run holding any write scope. Trading the tool's
+      # central claim for a convenience email would be a bad bargain.
+      - name: Weekly report issue
+        if: always() && steps.scan.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run  = process.env.RUN_ID;
+            const crit = parseInt(process.env.CRIT_COUNT || '0', 10);
+            const high = parseInt(process.env.HIGH_COUNT || '0', 10);
+
+            const clean  = crit === 0 && high === 0;
+            const title  = clean
+              ? `NHI scan ${run}: clean`
+              : `NHI scan ${run}: ${crit} Critical, ${high} High`;
+
+            // Counts and a pointer only. No identity names, no object ids - an issue on a
+            // public repo is a public document, and "which identities are unowned" is exactly
+            // the sentence an attacker would like to read.
+            const body = [
+              clean
+                ? `No Critical or High findings this week. The scan ran and completed.`
+                : `**${crit} Critical** and **${high} High** findings.`,
+              ``,
+              `Run: \`${run}\``,
+              ``,
+              `Counts only, by design. Output is never published as an artifact - the`,
+              `inventory is a complete map of every non-human identity in the tenant, its`,
+              `owners and its permissions. The anonymised control report is in this run's job`,
+              `summary; the full data stays on the runner and is destroyed with it.`,
+              ``,
+              `To inspect locally:`,
+              ``,
+              '```powershell',
+              `./scripts/Invoke-Pipeline.ps1`,
+              '```'
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              title:  title,
+              labels: clean ? ['nhi-scan'] : ['nhi-scan', 'findings'],
+              body:   body
+            });
+
+      # A FAILED RUN MUST ALSO SPEAK. Without this, a broken workflow is indistinguishable
+      # from a clean week - which is the single most dangerous state for a scheduled control.
+      - name: Raise an issue if the scan itself failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              title:  `NHI scan FAILED - ${process.env.RUN_ID || 'unknown run'}`,
+              labels: ['nhi-scan', 'broken'],
+              body: [
+                `The scheduled scan did not complete. **There is no assessment for this week.**`,
+                ``,
+                `Treat this as unknown posture, not as a clean result. Check the workflow logs`,
+                `for this run - the most common causes are an expired federated credential`,
+                `subject mismatch or a revoked application permission.`
+              ].join('\n')
+            });

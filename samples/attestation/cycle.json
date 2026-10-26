@@ -1,0 +1,9 @@
+{
+  "CycleId": "2026-Q4",
+  "ScanRunId": "2026-10-26T07-39Z",
+  "OpenedUtc": "2026-10-26T07:41:11.1703619Z",
+  "ResponseWindow": 30,
+  "Simulated": true,
+  "Policy": "docs/attestation-policy.md"
+}
+
