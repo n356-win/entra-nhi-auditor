@@ -3,14 +3,15 @@
 # How the scheduled scan authenticates without a secret
 **Implemented.** The workflow is at `.github/workflows/nhi-scan.yml`.
 
-> **Status, 25 Oct 2026: the workflow now exists** at `.github/workflows/nhi-scan.yml`.
-> Until today this document described a file that had never been written — the doc was right
-> about the path and the design, and there was simply nothing there. Same doc-versus-reality
-> drift as the control map, found the same way: by looking instead of assuming.
+> **Status, 26 Oct 2026: configured and run.** The federated credential, the repo variables and
+> the application permissions are in place, and the workflow has executed against a live tenant.
 >
-> **It is UNRUN.** The federated credential, the repo variables and the application permissions
-> all have to be configured in Entra before the first run means anything, and the first failure
-> belongs in `TROUBLESHOOTING.md`.
+> Two earlier states of this document are worth keeping, because both were the same mistake:
+> on 25 Oct it described a workflow file that had never been written, and until today it declared
+> that file unrun. In each case the document was right about the design and wrong about reality —
+> the same doc-versus-reality drift as the control map, found the same way, by looking instead of
+> assuming. **The lesson is the one the tool itself is built on: a described control and a tested
+> control are different objects.** Any failure from here belongs in `TROUBLESHOOTING.md`.
 >
 > **Four things the workflow deliberately does NOT do**, each one a decision rather than an
 > omission:

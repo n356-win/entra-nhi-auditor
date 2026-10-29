@@ -1,8 +1,8 @@
 # Architecture
 
-**Written 23 October 2026.** The whole thing in order — what runs when, what it produces, what
-consumes it, and when each piece opens. Completes the four-file documentation standard alongside
-`README.md`, `WALKTHROUGH.md` (not yet written) and `TROUBLESHOOTING.md`.
+**Written 23 October 2026, revised 26 October.** The whole thing in order — what runs when, what
+it produces, what consumes it, and when each piece opens. Completes the four-file documentation
+standard alongside `README.md`, `WALKTHROUGH.md` and `TROUBLESHOOTING.md`.
 
 ---
 
@@ -221,14 +221,14 @@ interpretation required.
 
 ## 5. Deferred work
 
-Three capabilities are designed but deliberately not built, because each depends on something the
-current version does not yet establish.
+Two capabilities are designed but deliberately not built, because each depends on something the
+current version does not establish. A third has since shipped.
 
 | Capability | What it adds | Why it waits |
 |---|---|---|
 | **IaC provenance** (`UNMANAGED_IDENTITY`) | Flags identities that exist in the directory but in no Terraform state — created by hand, outside any review | Needs a trusted state file. Without one the finding is a guess, and a confident guess is this project's most expensive failure mode |
 | **Remediation module** | Declares identities as code so there is an intended configuration to diverge from | Requires the provenance work above; remediation before discovery builds controls for identities you have not found |
-| **Scheduled scanning** | Continuous rather than point-in-time assessment | **Implemented** — `.github/workflows/nhi-scan.yml`, pending federated-credential setup |
+| **Scheduled scanning** | Continuous rather than point-in-time assessment | **Shipped and running** — `.github/workflows/nhi-scan.yml`, authenticating through a GitHub OIDC federated credential with no stored secret |
 
 **Why provenance matters more than it looks.** Terraform state is a *justification record*: the
 repository is the owner, the commit is the reason, the pull request is the approval. It sources

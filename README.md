@@ -149,6 +149,7 @@ scripts/
   99-New-LabFixture.ps1       LAB ONLY — the one script that writes
   Invoke-Pipeline.ps1         the whole chain, one tenant read
 .github/workflows/nhi-scan.yml  weekly scan, federated credential, no secret
+samples/                      sanitised output from a real run — read it without a tenant
 docs/                         attestation and rotation policies
 reference/                    control mapping, Graph permission model, pipeline setup
 WALKTHROUGH.md                what actually happened, including the wrong turns
@@ -164,11 +165,19 @@ that accused Microsoft of a bypassed control on every agent, in a correctly conf
 
 ## Status
 
-**This tool** (inventory, classification, attestation) and **the control-mapping stage** (control scoring) are implemented
-and have been run against a live tenant. The findings above came from those runs.
+Every stage — inventory, classification, attestation and control scoring — is implemented and has
+been run against a live tenant. The findings above came from those runs.
 
-**Not yet done:** sanitised fixtures in `samples/` so the tool can be demonstrated without a
-tenant; the GitHub workflow is written but unrun pending federated-credential setup.
+`samples/` holds sanitised output from a real run, so the tool can be read and evaluated without a
+tenant of your own. Every GUID, tenant-owned name, UPN and domain is synthetic; finding codes,
+severities, counts and structure are untouched. Microsoft first-party service principal names are
+kept deliberately — they are public product names, identical in every tenant.
+
+The scheduled workflow authenticates through a GitHub OIDC federated credential, holds no secret,
+and has been run. `reference/PIPELINE-IMPLEMENTATION.md` is the setup record.
+
+**Known limits are in *What it cannot do* above, and every failure found so far is in
+`TROUBLESHOOTING.md`.** Neither list is finished, because a single tenant cannot finish them.
 
 ---
 
