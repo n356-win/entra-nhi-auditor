@@ -627,7 +627,7 @@ function Add-Owner {
     if ($PSCmdlet.ShouldProcess($Target.DisplayName, "Add owner $OwnerLabel [$Bucket]")) {
         try {
             New-MgServicePrincipalOwnerByRef -ServicePrincipalId $Target.Id `
-                -BodyParameter @{ '@odata.id' = "https://graph.microsoft.com/the control-mapping stage/directoryObjects/$OwnerId" } `
+                -BodyParameter @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$OwnerId" } `
                 -ErrorAction Stop
 
             # Manifest FIRST-CLASS and flushed immediately. If the next call throws, this one

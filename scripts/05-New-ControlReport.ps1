@@ -665,6 +665,64 @@ $md.Add("> principal would be a category error, so each control is scored only a
 $md.Add("> population it governs.")
 $md.Add("")
 
+# -----------------------------------------------------------------------------
+# IaC COVERAGE - report the privileged subset separately from the full estate.
+# A full-estate figure diluted by first-party service principals is not a claim
+# about governance of privileged identities.
+$iacRows = @($findingsDoc.Findings | Where-Object {
+    $_.Findings.Code -contains 'IAC_MANAGED' -or
+    $_.Findings.Code -contains 'UNMANAGED_IDENTITY' -or
+    $_.Findings.Code -contains 'UNMANAGED_PRIVILEGED'
+})
+
+$iacCheckRecorded = $false
+$iacStateChecked  = $false
+if ($findingsDoc.PSObject.Properties['Parameters'] -and
+    $findingsDoc.Parameters -and
+    $findingsDoc.Parameters.PSObject.Properties['IaCStateChecked']) {
+    $iacCheckRecorded = $true
+    $iacStateChecked = [bool]$findingsDoc.Parameters.IaCStateChecked
+}
+
+$md.Add("## Infrastructure-as-code provenance")
+$md.Add("")
+if (-not $iacCheckRecorded) {
+    $md.Add('**NOT ASSESSED.** This findings file does not record whether Terraform state was checked.')
+    $md.Add('Re-run script 03, supplying `-TerraformStatePath` to assess IaC provenance.')
+    $md.Add('')
+} elseif (-not $iacStateChecked) {
+    $md.Add('**NOT ASSESSED.** No Terraform state file was supplied, so provenance was not evaluated.')
+    $md.Add('This is an absence of assessment, not a finding of 0% coverage. Supply')
+    $md.Add('`-TerraformStatePath` to script 03 to produce the figure.')
+    $md.Add('')
+} elseif ($iacRows.Count -eq 0) {
+    $md.Add('Terraform state was checked, but no identities were eligible for IaC provenance assessment.')
+    $md.Add('')
+} else {
+    $priv = @($iacRows | Where-Object {
+        $_.Findings.Code -contains 'EXCESSIVE_SCOPE_ESCALATION' -or
+        $_.Findings.Code -contains 'HIGH_IMPACT_PERMISSION'
+    })
+    $privDecl = @($priv | Where-Object { $_.Findings.Code -contains 'IAC_MANAGED' }).Count
+    $allDecl = @($iacRows | Where-Object { $_.Findings.Code -contains 'IAC_MANAGED' }).Count
+
+    if ($priv.Count -gt 0) {
+        $pct = [math]::Round(($privDecl / $priv.Count) * 100, 1)
+        $md.Add(('**{0}% of privileged non-human identities are declared in code** ({1} of {2}).' -f $pct, $privDecl, $priv.Count))
+    } else {
+        $md.Add('No privileged identities were found, so there is no privileged coverage figure.')
+    }
+    $md.Add('')
+    $pctAll = [math]::Round(($allDecl / $iacRows.Count) * 100, 1)
+    $md.Add(('Across all assessed tenant-owned identities: {0}% ({1} of {2}). **This is a different claim** ' -f $pctAll, $allDecl, $iacRows.Count) +
+            'and should not be quoted as the privileged figure.')
+    $md.Add('')
+    $md.Add('An identity declared in code carries a repository owner, a commit justification, a reviewed')
+    $md.Add('change history and an intended state against which drift is detectable. One created in the')
+    $md.Add('portal carries none of the four, and nothing in the directory records the difference.')
+    $md.Add('')
+}
+
 # --- The placeholder guard ---------------------------------------------------
 # If the control map still contains placeholder IDs, the report says so AT THE TOP, in the
 # document itself - not just in the console where it is easily missed. A draft that looks

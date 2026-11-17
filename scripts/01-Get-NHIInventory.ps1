@@ -353,7 +353,7 @@ function Get-SponsorSummary {
     # plausible shape - but plausible is not verified, which is why the method is recorded.
     $candidates = @(
         "https://graph.microsoft.com/beta/servicePrincipals/$ObjectId/sponsors",
-        "https://graph.microsoft.com/the control-mapping stage/servicePrincipals/$ObjectId/sponsors"
+        "https://graph.microsoft.com/v1.0/servicePrincipals/$ObjectId/sponsors"
     )
 
     foreach ($uri in $candidates) {
@@ -475,7 +475,7 @@ function Get-AgentDetail {
              identities as ServicePrincipalType='ServiceIdentity'. There is no undercount -
              agentIdentity is a SUBTYPE of servicePrincipal and comes back in the collection.
 
-          2. There is nothing else to enumerate. /beta/agentIdentities, /the control-mapping stage/agentIdentities,
+          2. There is nothing else to enumerate. /beta/agentIdentities, /v1.0/agentIdentities,
              /beta/directory/agentIdentities, /beta/agentIdentityBlueprints and
              /beta/directory/agentIdentityBlueprints ALL return
              400 "Resource not found for the segment". Those paths do not exist.
@@ -773,7 +773,7 @@ function Get-OwnerSummary {
                     else {
                         try {
                             $u = Invoke-MgGraphRequest -Method GET -OutputType PSObject -ErrorAction Stop `
-                                 -Uri "https://graph.microsoft.com/the control-mapping stage/directoryObjects/$ownerId`?`$select=id,accountEnabled"
+                                 -Uri "https://graph.microsoft.com/v1.0/directoryObjects/$ownerId`?`$select=id,accountEnabled"
                             if ($u.PSObject.Properties['accountEnabled']) {
                                 $enabled = [bool]$u.accountEnabled; $resolved = $true
                             }
@@ -1318,7 +1318,7 @@ foreach ($app in $apps) {
     $fedCreds = @()
     try {
         $fed = Invoke-MgGraphRequest -Method GET `
-               -Uri "https://graph.microsoft.com/the control-mapping stage/applications/$($app.Id)/federatedIdentityCredentials"
+               -Uri "https://graph.microsoft.com/v1.0/applications/$($app.Id)/federatedIdentityCredentials"
 
         foreach ($f in @($fed.value)) {
             $fedCreds += [pscustomobject]@{

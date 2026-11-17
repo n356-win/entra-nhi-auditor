@@ -27,3 +27,14 @@ agent_surface_notes.md
 # Local
 .secrets/
 *.local.ps1
+
+# Terraform - added before Terraform was ever run. State can contain object IDs and, for some
+# resources, SECRET MATERIAL IN PLAINTEXT. This is a worse disclosure than nhi_inventory.json.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
