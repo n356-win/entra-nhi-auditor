@@ -72,11 +72,14 @@
 
       3. Certificates & secrets -> Federated credentials -> Add:
              Issuer    https://token.actions.githubusercontent.com
-             Subject   repo:OWNER/REPO:environment:lab
+             Subject   repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/main
              Audience  api://AzureADTokenExchange
 
-         The SUBJECT is the whole control. repo:OWNER/REPO:ref:refs/heads/* means any branch
-         can assume this identity, and nothing about that looks wrong in a log.
+         Use the subject GitHub actually emits. GitHub's immutable-ID subject format includes
+         the owner and repository IDs; a name-only subject will not match it. For another
+         trigger (such as an environment), copy that trigger's exact subject from the log.
+         The SUBJECT is the whole control: do not broaden it to a wildcard to make exchange
+         errors disappear.
 
     THIS SCRIPT HAS NEVER BEEN RUN. Like everything else in this folder it was written without
     a runner to test against. Expect to fix something. Write down what.

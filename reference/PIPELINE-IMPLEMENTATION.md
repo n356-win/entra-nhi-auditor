@@ -177,7 +177,7 @@ starts honouring its triggers.
  3. Your step calls that URL, asking for audience api://AzureADTokenExchange.
     GitHub returns a short-lived JWT describing the run:
         iss = https://token.actions.githubusercontent.com
-        sub = repo:OWNER/REPO:ref:refs/heads/main
+        sub = repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/main
  4. You POST that JWT to Entra's token endpoint as a client assertion.
  5. Entra checks issuer, audience and subject against the federated
     credential you configured. All three match → it returns a Graph token.
@@ -299,25 +299,35 @@ On the app registration: **Certificates & secrets → Federated credentials → 
 | Field | Value |
 |---|---|
 | Issuer | `https://token.actions.githubusercontent.com` |
-| Subject | `repo:OWNER/REPO:ref:refs/heads/main` |
+| Subject | `repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/main` |
 | Audience | `api://AzureADTokenExchange` |
 
-**The subject is the whole control.** Compare:
+Use the exact subject GitHub prints in the workflow log. GitHub's immutable-ID subject format
+includes the owner and repository IDs; the old name-only form will not match. For this
+repository's `main` branch, the subject is:
 
 ```
-repo:n356-win/scanner:ref:refs/heads/main      one branch
-repo:n356-win/scanner:environment:lab          one environment  ← strongest
-repo:n356-win/scanner:ref:refs/heads/*         ANY branch       ← the vulnerability
-repo:n356-win/*                                any repo you own ← worse
+repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
 ```
 
-**`environment:lab` is the best of these**, because a GitHub environment can require manual approval
-and restrict which branches may deploy to it. That turns the subject match into a second gate rather
-than a single string comparison. It is why `environment: lab` is in the workflow above.
+**The subject is the whole control.** Keep it pinned to the intended branch or environment;
+do not use a wildcard just to get a successful exchange. Compare:
+
+```
+repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/main   one branch
+repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:lab      one environment
+repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/*      ANY branch       ← the vulnerability
+```
+
+An environment subject can provide a stronger gate if the workflow job declares
+`environment: lab` and that GitHub environment restricts allowed branches or requires approval.
+The current workflow does not declare an environment; it is pinned to the `main` branch subject
+above. If you change the workflow trigger or add an environment, use the resulting exact subject
+from the log and update the federated credential to match.
 
 ### The experiment — do this, it is the write-up
 
-1. Pin to `refs/heads/main`. Run the workflow. It works.
+1. Configure the exact `main` subject above and run the workflow.
 2. **Create a branch. Run it from there.** It fails — **capture the exact error**, because it names
    what Entra compared and what it expected.
 3. Widen the subject to a wildcard. Run from the branch again. **It works.**

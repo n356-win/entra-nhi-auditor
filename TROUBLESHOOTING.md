@@ -41,6 +41,40 @@ irritation into a statement about what the defect would cost in a real estate.
 
 ## Entries
 
+### 2026-11-16 — OIDC token rejected for subject mismatch
+
+**Symptom:** The workflow successfully requested an OIDC token, then the Microsoft token
+exchange failed with `AADSTS700213: No matching federated identity record found`. GitHub
+asserted:
+
+```text
+repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
+```
+
+**Expected:** Entra exchanges the assertion for a Microsoft Graph token.
+
+**Cause:** The federated credential's subject does not exactly match the `sub` claim GitHub
+issued. GitHub's subject includes immutable owner and repository IDs; the older
+`repo:OWNER/REPO:ref:refs/heads/main` form does not match.
+
+**Fix:** On the app registration identified by `AZURE_CLIENT_ID`, add or update the federated
+credential to use:
+
+```text
+Issuer:   https://token.actions.githubusercontent.com
+Subject:  repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
+Audience: api://AzureADTokenExchange
+```
+
+Keep the subject restricted to the intended branch. Do not use a wildcard as a workaround.
+The client ID and tenant ID must point to the app registration and tenant where this credential
+is configured. The script and workflow already request the expected issuer and audience; no
+Graph permission changes are needed for this error.
+
+**At scale:** A name-only or stale subject blocks authentication before Graph permissions are
+evaluated. Copy the subject from the workflow's OIDC diagnostic and compare all three
+federation fields before changing permissions.
+
 ### 2026-10-12 — admin consent granted, still prompting for approval
 
 **Symptom:** `Connect-MgGraph` with the four lab scopes prompted *"Need admin approval"* for a test
