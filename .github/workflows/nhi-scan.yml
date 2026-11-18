@@ -68,34 +68,34 @@ jobs:
           Install-Module Microsoft.Graph.Applications    -Force -Scope CurrentUser -AllowClobber
           Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -Scope CurrentUser -AllowClobber
 
-      - name: Connect to Graph (workload identity federation)
+      # CONNECT AND SCAN SHARE ONE STEP, because they must share one PROCESS.
+      #
+      # Every `run:` block starts a new shell. Connect-MgGraph keeps its token in the
+      # Microsoft.Graph.Authentication module's in-memory state, which belongs to the process
+      # that created it and dies with it. Authenticating in one step and scanning in the next
+      # cannot work: Get-MgContext in the second step returns nothing and Invoke-Pipeline.ps1
+      # throws "Not connected". That is what run 44277685856 did, on the first run that ever
+      # got past the federated credential - the bug had been here all along, unreachable
+      # behind an authentication failure.
+      #
+      # No env: block for ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN. The runner injects both into
+      # every step's process because this workflow declares `id-token: write`, and they are
+      # NOT in the `env` expression context, so forwarding them as
+      # `${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}` resolves to an empty string.
+      #
+      # THE PIPELINE. One RunId threaded through all three scripts. Script 01 defaults RunId
+      # to a UTC timestamp and writes output/latest-run.txt, and 03 and 05 read that pointer,
+      # but relying on the pointer inside CI is fragile: a concurrent run or a retried step
+      # would move it underneath the later steps. The RunId is computed ONCE here and passed
+      # explicitly to all three, so a run is atomic by construction rather than by timing.
+      - name: Connect and scan
+        id: scan
         shell: pwsh
-        # NO env: block for ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN. The runner injects both
-        # into every step's process because this workflow declares `id-token: write`, and
-        # they are NOT in the `env` expression context - so forwarding them as
-        # `${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}` resolves to an EMPTY STRING. That block
-        # looked like the OIDC wiring while doing nothing, and printed two blank values in
-        # the log directly above the real failure. Same shape of bug as the rest of this
-        # project: a line that reads as configuration and is actually a no-op.
         run: |
           ./scripts/00b-Connect-Pipeline.ps1 `
             -ClientId $env:AZURE_CLIENT_ID `
             -TenantId $env:AZURE_TENANT_ID
 
-      # ---------------------------------------------------------------------------------
-      # THE PIPELINE. One RunId threaded through all three scripts.
-      #
-      # This is the part that answers "does the Action follow the run-directory structure?".
-      # Script 01 defaults RunId to a UTC timestamp and writes output/latest-run.txt, and 03
-      # and 05 read that pointer - but relying on the pointer inside CI is fragile, because a
-      # concurrent run or a retried step would move it underneath the later steps. The RunId
-      # is computed ONCE here and passed explicitly to all three, so a run is atomic by
-      # construction rather than by timing.
-      # ---------------------------------------------------------------------------------
-      - name: Scan
-        id: scan
-        shell: pwsh
-        run: |
           # Calls the SAME orchestrator a human runs locally, rather than re-listing the
           # stages here. Two copies of the pipeline order is two places to forget a stage -
           # and the local copy is the one that gets updated.

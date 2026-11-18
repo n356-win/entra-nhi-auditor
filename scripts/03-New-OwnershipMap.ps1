@@ -300,8 +300,9 @@ function New-Finding {
 #      "Which of your non-human identities are declared in code, and which were clicked
 #       into existence?"
 #
-#  WARNING - THIS CODE HAS NEVER BEEN RUN. Like the rest of the scripts in this folder it
-#  was written without a tenant or a Terraform install to test against. Verify it against
+#  WARNING - THIS FUNCTION HAS NEVER BEEN RUN against real Terraform state. The rest of this
+#  script has run against a live tenant, but samples/nhi_findings.json still reports
+#  IaCStateChecked = false, so no shipped run has exercised this parser. Verify it against
 #  a sanitised fixture with known IaC provenance BEFORE trusting a single number it
 #  produces. The failure mode to watch for is a parser that silently returns nothing.
 # #############################################################################

@@ -8,7 +8,7 @@
 >
 > Two earlier states of this document are worth keeping, because both were the same mistake:
 > on 25 Oct it described a workflow file that had never been written, and until today it declared
-> that file unrun. In each case the document was right about the design and wrong about reality —
+> that file unrun. In each case the document was right about the design and wrong about reality,
 > the same doc-versus-reality drift as the control map, found the same way, by looking instead of
 > assuming. **The lesson is the one the tool itself is built on: a described control and a tested
 > control are different objects.** Any failure from here belongs in `TROUBLESHOOTING.md`.
@@ -18,13 +18,13 @@
 >
 > | Not done | Why |
 > |---|---|
-> | Upload scan output as an artifact | `nhi_inventory.json` is a complete map of every non-human identity, its owners and its permissions. Artifacts are downloadable by anyone with repo read access — on a public repo, everyone. **The scan runs in the pipeline; the data stays there.** |
+> | Upload scan output as an artifact | `nhi_inventory.json` is a complete map of every non-human identity, its owners and its permissions. Artifacts are downloadable by anyone with repo read access, on a public repo, everyone. **The scan runs in the pipeline; the data stays there.** |
 > | Run `04` (attestation) | It writes records addressed to people. That belongs to a human-initiated quarterly cycle, not a cron job. |
-> | Run `99` (lab fixture) | It needs `Application.ReadWrite.All` and `Directory.ReadWrite.All` — the exact permissions `03` reports as **Critical**. The auditor stays read-only. |
+> | Run `99` (lab fixture) | It needs `Application.ReadWrite.All` and `Directory.ReadWrite.All`, the exact permissions `03` reports as **Critical**. The auditor stays read-only. |
 > | Hold any write permission | `00b` refuses to continue holding one, so a mis-granted permission **fails the run instead of using it**. |
 >
 > The job summary publishes the `-Anonymise` report only, and the issue it raises carries
-> **counts and a run id, nothing else** — "which identities are unowned" is precisely the
+> **counts and a run id, nothing else**, "which identities are unowned" is precisely the
 > sentence an attacker would like to read on a public repo.
 
 ---
@@ -36,15 +36,15 @@ the reason is the whole argument of the tool.**
 
 `Mail.Send` is a **write** permission. `00b-Connect-Pipeline.ps1` refuses to run holding any
 write scope at all, and the workflow is granted none. Adding `Mail.Send` so the scanner can email
-you would trade the tool's central claim — *the auditor holds nothing that can change anything* —
-for a convenience. A reviewer who noticed that would be right to.
+you would trade the tool's central claim, *the auditor holds nothing that can change anything*,
+for a convenience.
 
 **What is used instead: GitHub's own notifications.** The workflow opens an issue on every run.
 Watch the repository and each one reaches your inbox. No new permission, no new infrastructure,
 and the notification path is itself auditable.
 
 **An issue is raised on every run, not only on findings**, because an alert-only design cannot
-distinguish *"a clean week"* from *"the workflow stopped running"* — both are silence, and the
+distinguish *"a clean week"* from *"the workflow stopped running"*, both are silence, and the
 second is the one that matters. A separate `if: failure()` step raises a distinct issue when the
 scan itself breaks, saying plainly that there is **no assessment for that week** and that the
 posture is unknown rather than clean. A scheduled control that fails quietly reports a perfect
@@ -59,7 +59,7 @@ a client, and the difference is worth being able to argue.
 
 | | GitHub Actions *(built)* | Azure Automation Account |
 |---|---|---|
-| Credential | Federated — **no secret exists** | System-assigned managed identity — no secret either |
+| Credential | Federated, **no secret exists** | System-assigned managed identity, no secret either |
 | Where it runs | GitHub-hosted runner, **outside the tenant** | Inside the client's own subscription |
 | Tenant data | Transits a third-party runner, destroyed with it | **Never leaves the tenant boundary** |
 | Graph permissions | App roles on the app registration | App roles on the managed identity |
@@ -67,34 +67,34 @@ a client, and the difference is worth being able to argue.
 | Cost | Free | Small, per job-minute |
 | Setup | Federated credential + 2 repo variables | Automation account, MI, role assignment script |
 
-**The deciding question is not technical — it is whose infrastructure may read the directory.**
+**The deciding question is whose infrastructure may read the directory.**
 A GitHub-hosted runner holding a Graph token that enumerates every identity in a client's tenant
 is a supply-chain exposure some clients will accept and some will refuse outright. Azure
 Automation keeps the read inside the subscription they already own.
 
-**So: GitHub Actions for this repository and for the portfolio** — the federated credential is
+**So: GitHub Actions for this repository and for the portfolio**, the federated credential is
 Phase 6's deliverable and *"no secret exists anywhere in this system"* is the stronger story.
 **Azure Automation for a client engagement**, where the answer to "who else sees our directory
 data?" needs to be "nobody."
 
 The scripts need no changes either way. They read Graph through whatever session is already
-connected, which is exactly why `00` and `00b` are separate files — the authentication model is
+connected, which is exactly why `00` and `00b` are separate files, the authentication model is
 swappable and the assessment logic is not involved.
 
 ---
 
-## Read this first — it breaks a rule you already made
+## Read this first: it breaks a rule you already made
 
 **A pipeline cannot authenticate interactively.** Phase 0.2b says interactive delegated through
 the control-mapping stage, and that decision stands for the lab. This is the **documented client-deployment option**
-from the same table — app-only, except the credential is federated instead of a certificate.
+from the same table, app-only, except the credential is federated instead of a certificate.
 
 **What that costs you, stated plainly:**
 
 | | Interactive delegated (the lab) | App-only federated (the pipeline) |
 |---|---|---|
-| Lock 1 — consent | Yes | Yes |
-| **Lock 2 — the user's role** | **Yes — a real ceiling** | **None. There is no user.** |
+| Lock 1, consent | Yes | Yes |
+| **Lock 2, the user's role** | **Yes, a real ceiling** | **None. There is no user.** |
 | Permission type | Delegated | **Application** |
 | Needs admin consent | Yes | Yes |
 
@@ -109,12 +109,12 @@ entire directory with nothing narrowing it. So:
 
 ## Where the files go
 
-> ### CORRECTION — 23 October 2026
+> ### CORRECTION, 23 October 2026
 >
 > An earlier version of this file said *"the point of routing the pipeline through `00`"*, and the
 > `-AccessToken` comment in `00-Connect-Lab.ps1` said `00b` *"calls through to here."*
 >
-> **Neither is true. `00b-Connect-Pipeline.ps1` is fully self-contained** — it does the OIDC
+> **Neither is true. `00b-Connect-Pipeline.ps1` is fully self-contained**, it does the OIDC
 > exchange, decodes the token, checks the roles, and calls `Connect-MgGraph` itself at the end.
 > **It never touches `00`.** I wrote that parameter for a design and then built a different one.
 >
@@ -128,8 +128,8 @@ entire directory with nothing narrowing it. So:
 | **`00b-Connect-Pipeline.ps1`** | **GitHub Actions** | Federated, **app-only** | `roles` |
 
 **They cannot share verification logic, and that is the reason there are two files.** `00` reads
-`$ctx.Scopes`, populated from `scp`. An app-only token has no `scp` — its permissions are in
-`roles` — so `00` would report *every required permission missing* on a perfectly valid token.
+`$ctx.Scopes`, populated from `scp`. An app-only token has no `scp`, its permissions are in
+`roles`, so `00` would report *every required permission missing* on a perfectly valid token.
 Routing the pipeline through it would produce a confidently wrong answer.
 
 ### What actually goes in the repo
@@ -151,7 +151,7 @@ your-repo/
 **So: is `00` required? No.** The pipeline needs `00b`, `01`, `03`, `05` and the workflow file.
 Nothing else.
 
-**Should it be there anyway? Yes** — but for a reason that has nothing to do with CI:
+**Should it be there anyway? Yes**, but for a reason that has nothing to do with CI:
 
 > **The repo is a tool other people will run.** Almost everyone who clones it will run it by hand
 > against their own tenant, from a laptop, with a browser prompt. **`00` is their entry point.**
@@ -160,7 +160,7 @@ Nothing else.
 Ship both. The pipeline using several of them is not a
 reason to publish only four.
 
-**`.github/workflows/` is the only magic path.** Any `.yml` in there is picked up automatically —
+**`.github/workflows/` is the only magic path.** Any `.yml` in there is picked up automatically,
 there is nothing to register, enable or point at. Commit the file to the default branch and GitHub
 starts honouring its triggers.
 
@@ -188,7 +188,7 @@ starts honouring its triggers.
 
 ---
 
-## Entra setup — do this first, it is not optional
+## Entra setup: do this first, it is not optional
 
 **The federated credential solves authentication. It does nothing for authorization.** Skip this
 and you will get a token successfully, then 403 on every single Graph call.
@@ -197,7 +197,7 @@ and you will get a token successfully, then 403 on every single Graph call.
 |---|---|---|
 | 1 | App registration → **API permissions** → Microsoft Graph → **Application permissions** | `Application.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`, `RoleManagement.Read.Directory` |
 | 2 | Same page | **Grant admin consent.** All four require it. |
-| 3 | **Certificates & secrets → Federated credentials → Add** | Issuer, subject, audience — see below |
+| 3 | **Certificates & secrets → Federated credentials → Add** | Issuer, subject, audience, see below |
 | 4 | GitHub → Settings → Secrets and variables → Actions → **Variables** | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` |
 
 > **Step 1 says APPLICATION permissions, not Delegated.** Same names, different objects. Delegated
@@ -211,7 +211,7 @@ and you will get a token successfully, then 403 on every single Graph call.
 
 ---
 
-## The workflow — now four lines, because the logic is in a script
+## The workflow: now four lines, because the logic is in a script
 
 ```yaml
 name: NHI scan
@@ -262,21 +262,21 @@ jobs:
           Write-Host "No Critical findings."
 ```
 
-**`vars.` not `secrets.`** — a client ID and a tenant ID are identifiers, not credentials. Putting
+**`vars.` not `secrets.`**, a client ID and a tenant ID are identifiers, not credentials. Putting
 them in `secrets` implies they are sensitive and teaches the wrong lesson about what a secret is.
 
 ### What `00b-Connect-Pipeline.ps1` does
 
 Five steps, each failing loudly with a named cause rather than a stack trace:
 
-1. **Requests GitHub's OIDC token** — and if the env vars are missing, says *"your workflow is
+1. **Requests GitHub's OIDC token**, and if the env vars are missing, says *"your workflow is
    missing `permissions: id-token: write`"*, because that is what it always means.
 2. **Prints the subject GitHub asserted.** When the exchange fails, the mismatch is visible right
    here. This is the most useful line of output in the whole run.
-3. **Exchanges it**, and on failure surfaces Entra's own error body — which names which check failed.
+3. **Exchanges it**, and on failure surfaces Entra's own error body, which names which check failed.
 4. **Decodes the returned token locally** and verifies the `roles` claim. Zero roles means consent
    was never granted, and it says so in those words.
-5. **Refuses to run if it holds any write permission.** Hard stop, not a warning — see below.
+5. **Refuses to run if it holds any write permission.** Hard stop, not a warning, see below.
 
 ### Why `00b` refuses writes where `00` only warns
 
@@ -288,11 +288,9 @@ still bounded by the signed-in user's role, so a stray write scope is untidy rat
 > An unattended, scheduled credential with directory write access is the exact shape of finding
 > this scanner reports. **It should not describe the scanner.**
 
-That refusal is one of the better paragraphs you will have for an interview, and it costs nothing.
-
 ---
 
-## Pin the subject — this is the part that matters
+## Pin the subject: this is the part that matters
 
 On the app registration: **Certificates & secrets → Federated credentials → Add credential**.
 
@@ -307,7 +305,7 @@ includes the owner and repository IDs; the old name-only form will not match. Fo
 repository's `main` branch, the subject is:
 
 ```
-repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
+repo:n365-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 ```
 
 **The subject is the whole control.** Keep it pinned to the intended branch or environment;
@@ -325,10 +323,10 @@ The current workflow does not declare an environment; it is pinned to the `main`
 above. If you change the workflow trigger or add an environment, use the resulting exact subject
 from the log and update the federated credential to match.
 
-### The experiment — do this, it is the write-up
+### The experiment: do this, it is the write-up
 
 1. Configure the exact `main` subject above and run the workflow.
-2. **Create a branch. Run it from there.** It fails — **capture the exact error**, because it names
+2. **Create a branch. Run it from there.** It fails, **capture the exact error**, because it names
    what Entra compared and what it expected.
 3. Widen the subject to a wildcard. Run from the branch again. **It works.**
 4. Put it back.
@@ -347,14 +345,14 @@ paragraph in one.
 **Do not upload scan output as a build artifact in a public repository.**
 
 Build artifacts are downloadable by anyone who can see the repo. `nhi_inventory.json` and
-`nhi_ownership.csv` are **real tenant data** — the exact data `.gitignore` exists to keep out.
+`nhi_ownership.csv` are **real tenant data**, the exact data `.gitignore` exists to keep out.
 A helpful `actions/upload-artifact` step defeats the lot, and someone else would find it before you
 did.
 
 **Two safe shapes:**
 
 1. **Private repo** for the scheduled run. Simplest.
-2. **Public workflow that runs against `samples/` fixtures** and publishes *that*. Better — it
+2. **Public workflow that runs against `samples/` fixtures** and publishes *that*. Better, it
    doubles as a working example anyone can run without a tenant.
 
 The workflow above writes to `output/`, which is gitignored, and uploads nothing. **Keep it that
@@ -363,7 +361,7 @@ way.**
 ### How to implement the protection, rather than relying on remembering
 
 **1. The default is already safe.** There is no `actions/upload-artifact` step in the workflow
-above. Artifacts are opt-in — you have to add a step to leak anything. So the first control is
+above. Artifacts are opt-in: you have to add a step to leak anything. So the first control is
 simply: **do not add one.**
 
 **2. Make the repo prove it.** Add this as the last step. It fails the build if anything matching
@@ -405,7 +403,7 @@ the public one for the tool and sanitised samples. Then no single careless step 
 anything, because there is nothing real in the public repo to expose.
 
 > Controls 1–3 depend on you being careful every time. **Control 4 does not.** Prefer the one that
-> does not depend on vigilance — which is the same argument this whole tool makes about credentials.
+> does not depend on vigilance, which is the same argument this whole tool makes about credentials.
 
 ---
 
@@ -418,7 +416,7 @@ earlier claim here that it did was wrong.
 obtained some other way, without a browser prompt.
 
 **Where it will mislead you:** feed it an **app-only** token and `00` will report that every
-required permission is missing — on a token that works perfectly. Its checks read `$ctx.Scopes`,
+required permission is missing, on a token that works perfectly. Its checks read `$ctx.Scopes`,
 which comes from the `scp` claim; an app-only token has no `scp` at all, only `roles`.
 
 > **That is not a bug to fix. It is two authentication models with two claim names.**
@@ -428,7 +426,7 @@ Both scripts handle the SDK's `SecureString`-versus-plain-string change at v2, b
 control which version a runner installs and discovering that at 06:00 on a Monday is a bad use of a
 morning.
 
-**Keep the parameter or remove it — your call.** It is honest now either way. The argument for
+**Keep the parameter or remove it: your call.** It is honest now either way. The argument for
 keeping it is that the failure mode above is a good thing for a reader to run into once, with the
 comment right there explaining it.
 
@@ -438,8 +436,8 @@ comment right there explaining it.
 
 **One artifact making two claims that reinforce each other:**
 
-- *"I embedded an identity control into a CI/CD pipeline"* — the DevSecOps claim
-- *"It holds no secret, because the control it enforces is that secrets are unnecessary"* — the
+- *"I embedded an identity control into a CI/CD pipeline"*: the DevSecOps claim
+- *"It holds no secret, because the control it enforces is that secrets are unnecessary"*, the
   identity claim
 
 And **Phase 6.3 reports federated credentials as a positive finding**, so the scanner reports

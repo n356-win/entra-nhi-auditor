@@ -2,19 +2,17 @@
 
 **One entry per incident. Written at the moment it happens, not afterwards.**
 
-This is the file hiring managers actually read, because it is the one that cannot be faked. Anyone
-can write a README. Only someone who ran the thing can write *"it returned 403 with consent
-granted, and here is why."*
-
----
+Each entry records one failure: the symptom as it appeared, the cause once found, and the fix.
+Entries are written during the incident, so the wrong first guesses are kept alongside the
+answer.
 
 ## The two rules
 
-**1. Write it while it is broken.** Three days later it is fiction — you will remember the fix and
+**1. Write it while it is broken.** Three days later it is fiction: you will remember the fix and
 forget the symptom, and the symptom is the half that helps anyone else. Thirty seconds now beats a
 paragraph of reconstruction later.
 
-**2. Capture the evidence before you fix it.** The portal blade, the raw error, the field list —
+**2. Capture the evidence before you fix it.** The portal blade, the raw error, the field list,
 two seconds now, impossible afterwards. Several entries below were only resolvable because the
 original output was kept verbatim rather than paraphrased.
 
@@ -25,11 +23,11 @@ original output was kept verbatim rather than paraphrased.
 Copy this. Six lines. If it takes more than three minutes you are writing an essay.
 
 ```markdown
-## YYYY-MM-DD — symptom in six words
+## YYYY-MM-DD: symptom in six words
 
 **Symptom:** what you actually saw. Paste the real error text, not a paraphrase.
 **Expected:** what should have happened instead.
-**Cause:** the real one. If your first guess was wrong, say what it was — that is the useful part.
+**Cause:** the real one. If your first guess was wrong, say what it was; that is the useful part.
 **Fix:** the exact command or change.
 **At scale:** what this would look like in a client tenant with 400 identities.
 ```
@@ -41,14 +39,43 @@ irritation into a statement about what the defect would cost in a real estate.
 
 ## Entries
 
-### 2026-11-16 — OIDC token rejected for subject mismatch
+### 2026-11-18: connected in one step, "not connected" in the next
+
+**Symptom:** The first run that ever got past the federated credential exchange failed
+immediately afterwards. The connect step reported success; the next step threw at
+`Invoke-Pipeline.ps1`:
+
+```text
+Not connected. Run 00-Connect-Lab.ps1 first.
+```
+
+**Expected:** The pipeline runs using the Graph token the previous step obtained.
+
+**Cause:** Every `run:` block in a GitHub Actions job is a separate process.
+`Connect-MgGraph` holds its token in the Microsoft.Graph.Authentication module's in-memory
+state, which belongs to the process that created it. The connect step's process exits, the
+scan step starts a new `pwsh`, and `Get-MgContext` returns nothing. The workflow had
+authenticated in one process and scanned in another since it was written. The bug was
+unreachable until the credential was fixed, because no run had ever got that far.
+
+**Fix:** Connect and scan in a single step so they share one process. The step keeps
+`id: scan`, which the reporting step tests with `steps.scan.outcome`. The misleading error
+text was also corrected: it named the lab script while running in the pipeline, where
+`00b-Connect-Pipeline.ps1` is the right entry point.
+
+**At scale:** this is the failure mode where each step passes its own check and the job still
+cannot work. Nothing in the connect step is wrong, and nothing in the scan step is wrong. A
+CI pipeline that authenticates in one step and uses the session in another will fail this way
+for any SDK that keeps auth in process memory, which is most of them.
+
+### 2026-11-16: OIDC token rejected for subject mismatch
 
 **Symptom:** The workflow successfully requested an OIDC token, then the Microsoft token
 exchange failed with `AADSTS700213: No matching federated identity record found`. GitHub
 asserted:
 
 ```text
-repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
+repo:n365-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 ```
 
 **Expected:** Entra exchanges the assertion for a Microsoft Graph token.
@@ -62,7 +89,7 @@ credential to use:
 
 ```text
 Issuer:   https://token.actions.githubusercontent.com
-Subject:  repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
+Subject:  repo:n365-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 Audience: api://AzureADTokenExchange
 ```
 
@@ -71,11 +98,26 @@ The client ID and tenant ID must point to the app registration and tenant where 
 is configured. The script and workflow already request the expected issuer and audience; no
 Graph permission changes are needed for this error.
 
+**Resolved 2026-11-18.** The configured subject and the asserted subject differed by two
+transposed digits in the account name. Everything else matched: owner ID, repository, repository
+ID, ref, issuer and audience. The error code says which field failed: `AADSTS700213` names the
+*subject*, where `AADSTS700211` would name the issuer, so a credential with the right issuer
+already existed and only its subject was wrong. Read the configured value rather than retyping
+it:
+
+```powershell
+az ad app federated-credential list --id <AZURE_CLIENT_ID>
+```
+
+**At scale:** an exact-match string with a hand-typed account name in it will eventually be typed
+wrong, and the error names the whole subject rather than the character that differs. Diff the
+asserted value against the stored one instead of comparing them by eye.
+
 **At scale:** A name-only or stale subject blocks authentication before Graph permissions are
 evaluated. Copy the subject from the workflow's OIDC diagnostic and compare all three
 federation fields before changing permissions.
 
-### 2026-10-12 — admin consent granted, still prompting for approval
+### 2026-10-12: admin consent granted, still prompting for approval
 
 **Symptom:** `Connect-MgGraph` with the four lab scopes prompted *"Need admin approval"* for a test
 user with no assigned role, after admin consent had already been granted in the portal.
@@ -83,7 +125,7 @@ user with no assigned role, after admin consent had already been granted in the 
 **Expected:** no prompt. Tenant-wide admin consent should cover all users for those scopes.
 
 **Cause:** consent had been granted on **Microsoft Graph** (`00000003-0000-0000-c000-000000000000`)
-— which is the **resource**, the API being called. The Graph PowerShell SDK signs in as a different
+, which is the **resource**, the API being called. The Graph PowerShell SDK signs in as a different
 app: **Microsoft Graph Command Line Tools** (`14d82eec-204b-4c2f-b7e8-296a70dab67e`). Grants attach
 to the **client's** service principal, not the resource's. Both appear in Enterprise applications
 with near-identical names, which is why this is easy to get wrong.
@@ -98,11 +140,11 @@ every time" and "approve it once." Knowing which object to point at saves a roun
 admin, and being able to explain *why* there are two objects is a credibility moment.
 
 **Follow-on, not yet observed:** consent is only the first check. A user with no directory role
-should still get **403** on `/auditLogs/*` — Microsoft documents Reports Reader, Security Reader or
+should still get **403** on `/auditLogs/*`, Microsoft documents Reports Reader, Security Reader or
 Security Administrator for `directoryAudits`. **Confirm empirically and add an entry when it
 happens.**
 
-### 2026-10-26 — managed identity reported as NO_OWNER, portal shows an owner
+### 2026-10-26: managed identity reported as NO_OWNER, portal shows an owner
 
 **First real run of the tool against a live tenant.** Everything before this was unrun code.
 
@@ -122,53 +164,52 @@ definitely the same object.
 **Expected:** either an owner reported, or an explanation of why there isn't one.
 
 **First guess, wrong:** that `Get-MgServicePrincipalOwner` had failed silently or been
-rate-limited. It had not — the call returned correctly. There genuinely are no Entra owners on
+rate-limited. It had not; the call returned correctly. There genuinely are no Entra owners on
 that object.
 
-**Cause — two unrelated ownership models, and the tool reads one:**
+**Cause:** two unrelated ownership models, and the tool reads one:
 
 | | Where it lives | Visible to Graph? |
 |---|---|---|
-| **Entra object owners** | `/servicePrincipals/{id}/owners` | **Yes** — this is what RULE 1 tests |
+| **Entra object owners** | `/servicePrincipals/{id}/owners` | **Yes**, this is what RULE 1 tests |
 | **Azure RBAC** | `Microsoft.Authorization/roleAssignments` on the ARM resource | **No. Different control plane entirely.** |
 
-The portal Owner was an **Azure RBAC role assignment, inherited from the subscription** — the
+The portal Owner was an **Azure RBAC role assignment, inherited from the subscription**, the
 screenshot says *"Subscription (Inherited)"* in the Scope column. That is the ARM authorization
 plane. Microsoft Graph does not expose it, so this script cannot see it and never will.
 
 And worse: a **system-assigned managed identity cannot have Entra owners even in principle.** It is
 created and destroyed with its parent Azure resource. There is no owner field to populate.
-`NO_OWNER` was not an under-governed identity — it was a category error.
+`NO_OWNER` was a category error, not an under-governed identity.
 
 **Fix:** RULE 1 in `03-New-OwnershipMap.ps1` now branches on `IsManagedIdentity` and emits
 `MI_OWNERSHIP_NOT_IN_GRAPH` (**Info**, not High) instead of `NO_OWNER`. It reports the boundary
 rather than inventing a finding. `ORPHANED_OWNER` still fires if an owner somehow exists and is
 disabled, because user-assigned managed identities are standalone resources and the model is less
-absolute there. Also added a `Classification` field to the findings JSON — `ObjectClass` alone said
+absolute there. Also added a `Classification` field to the findings JSON, `ObjectClass` alone said
 `ServicePrincipal`, which is true and useless.
 
 **At scale:** this is the single most important false positive in the tool. A mid-size Azure estate
-has *hundreds* of managed identities — every VM, Function App, Logic App and Automation Account
+has *hundreds* of managed identities, every VM, Function App, Logic App and Automation Account
 with system-assigned identity enabled. **Unfixed, this tool would have reported every one of them
 as High severity unowned, and been wrong every time.** That is a report nobody reads twice, and it
 is the same failure the Microsoft first-party exclusion was written to prevent.
 
 **The general lesson, which generalises past this tool:** for managed identities, accountability
-lives in **Azure RBAC on the parent resource**, not in Entra object owners. Any identity governance
-tool that reads only Graph is structurally blind to it. **State that limitation in the README** —
-and it is a good answer to "what can't your tool do?", which is a question worth being ready for.
+lives in Azure RBAC on the parent resource, not in Entra object owners. Any identity governance
+tool that reads only Graph is structurally blind to it. State that limitation in the README.
 
-### 2026-10-25 — a probe that could only ever return one answer
+### 2026-10-25: a probe that could only ever return one answer
 
 **Symptom:** `probe-agent-capability.ps1` reported `agentCapabilities` as *"accepted but not
-returned → exists, not populated"* — conveniently confirming the hypothesis it was written to
+returned → exists, not populated"*, conveniently confirming the hypothesis it was written to
 test. The output also showed the application's properties as:
 
 ```
 Count, IsFixedSize, IsReadOnly, IsSynchronized, Keys, SyncRoot, Values
 ```
 
-and `Target: `` objectId ``` — both empty.
+and `Target: `` objectId ```, both empty.
 
 **Expected:** Graph field names like `id`, `appId`, `displayName`, `tags`.
 
@@ -178,7 +219,7 @@ keys. The presence test was `$keys -contains 'agentCapabilities'`, which **could
 whatever Graph actually sent back.
 
 The empty `id` then propagated into the next request as `$filter=appId eq ''`, which Graph
-rejected — producing an error that looked like a finding about appId filtering and was nothing of
+rejected, producing an error that looked like a finding about appId filtering and was nothing of
 the sort.
 
 **Fix:** `Get-Keys` / `Get-Field` helpers that handle `IDictionary` and `PSObject` alike, plus
@@ -189,7 +230,7 @@ read an `id` instead of carrying an empty value forward.
 **At scale:** this is the dangerous class of bug. It did not crash, it did not warn, and it
 returned a plausible answer that happened to agree with what I expected. **A probe whose default
 behaviour is to confirm the hypothesis is not a probe.** Any check that cannot visibly fail will
-eventually report whatever its defaults imply — and in an auditor-facing tool that is how a false
+eventually report whatever its defaults imply, and in an auditor-facing tool that is how a false
 clean bill of health gets written.
 
 **What survived from the bad run, and what did not:**
@@ -202,11 +243,11 @@ clean bill of health gets written.
 | `appId` filter unsupported | **INVALID.** It fired with an empty string. Retest. |
 
 **The collection-path result matters on its own:** agent identities are **not separately
-addressable** in Graph. They are service principals carrying agent properties — which means `02b`
+addressable** in Graph. They are service principals carrying agent properties, which means `02b`
 must enumerate `servicePrincipals` and filter, not call an agent endpoint. That is a real
 constraint on the design, and it is the one solid thing the bad run produced.
 
-### 2026-10-25 — the probe contradicted itself in two consecutive lines, and that was the answer
+### 2026-10-25: the probe contradicted itself in two consecutive lines, and that was the answer
 
 **Fourth attempt at the same probe.** The previous three each failed differently and none of them
 answered the `agentCapabilities` question.
@@ -226,10 +267,10 @@ InvalidOperation: ...line 276 | $md.Add("Type: ``$($app.GetType().FullName)``")
 **Expected:** either the agent's application object, or a clean statement that none was found.
 
 **The contradiction is the diagnosis.** `read 'value' via PSObject.Properties` and `'value' is
-present but unreadable` cannot both be true — except they were, because they were measuring
+present but unreadable` cannot both be true, except they were, because they were measuring
 different things. The property existed and was read. What came *back* from the function was null.
 
-**Cause — PowerShell unrolls collections on return.**
+**Cause:** PowerShell unrolls collections on return.
 
 ```powershell
 function f { return @() }
@@ -237,8 +278,8 @@ $x = f          # $x is $null, not @()
 ```
 
 `Get-Field` read `value` correctly every time, got an **empty array**, and `return $val` enumerated
-it into zero output objects. The caller assigned nothing and saw `$null`. So an empty collection —
-an ordinary 200 meaning *your filter matched nothing* — was indistinguishable from *this field
+it into zero output objects. The caller assigned nothing and saw `$null`. So an empty collection,
+an ordinary 200 meaning *your filter matched nothing*, was indistinguishable from *this field
 cannot be read*.
 
 Everything downstream followed from that one conflation:
@@ -249,19 +290,19 @@ Everything downstream followed from that one conflation:
 | `$obj = $r` | the **response envelope** became the "application" |
 | `Get-Field -Obj $app -Name 'id'` | an envelope has no `id` → null |
 | raw-JSON fallback | `@($parsed.value)[0]` on an empty array → `$null`, the same bug by another route |
-| `$app.GetType()` in the abort block | crash — the diagnostic died at the one moment it was needed |
+| `$app.GetType()` in the abort block | crash, the diagnostic died at the one moment it was needed |
 
-**Fix, four parts:**
+**Fix, in four parts:**
 
 1. **`return ,$val`** in `Get-Field`. The unary comma wraps the value so the unroll returns exactly
    what went in. One character, and it was the whole bug.
 2. **Collection vs entity is decided by the presence of the `value` key**, never by whether
-   something readable came out of it. Empty collections now print `0 item(s) matched` — a result,
+   something readable came out of it. Empty collections now print `0 item(s) matched`, a result,
    not a silent fall-through.
 3. **A self-test** (`Test-GetFieldContract`) runs before any network call and asserts `Get-Field`
    round-trips an empty array, a 2-item array, a hashtable, and a genuinely absent field. The probe
    now fails on its own helper rather than on Graph's data.
-4. **Null-guarded the abort block**, and **deleted the raw-JSON fallback** — it was built on the
+4. **Null-guarded the abort block**, and **deleted the raw-JSON fallback**, which was built on the
    theory that `-OutputType PSObject` produced unreadable objects. That theory was wrong, and raw
    JSON reproduces the identical bug. *Consequence: the open question "should `02b` use
    `-OutputType Json` throughout?" is answered **no**. `PSObject` was never the problem.*
@@ -269,20 +310,20 @@ Everything downstream followed from that one conflation:
 **The substantive finding, which is bigger than the bug:**
 
 The filter `beta/applications?$filter=tags/any(t:t eq 'agent')` returned **200 with an empty
-collection** — 2 fields, `@odata.context` and an empty `value`. Zero matches.
+collection**, 2 fields, `@odata.context` and an empty `value`. Zero matches.
 
-Script 01's comment claimed that filter was **"PROVEN — returned 200 with exactly 1 item."** That
+Script 01's comment claimed that filter was **"PROVEN, returned 200 with exactly 1 item."** That
 claim is withdrawn, for two independent reasons:
 
 - The "1 item" count was printed by probe code that had a **known object-shape bug at the time it
   printed it**. It is not usable evidence.
-- **Object type mismatch**, which holds whatever the count was: the probe filtered
+- **Object type mismatch**, which holds whatever the count was. The probe filtered
   `/applications`, while `01-Get-NHIInventory.ps1` reads `$sp.Tags` on a **service principal**.
   Different entities, independently populated tag collections. A result on one was never evidence
   about the other.
 
 So the probe now opens with a **ground-truth step**: enumerate both collections, print every tag on
-every tagged object, and report the distinct tag vocabulary — before selecting any target. It also
+every tagged object, and report the distinct tag vocabulary, before selecting any target. It also
 takes `-ApplicationObjectId` / `-ServicePrincipalObjectId` so the target can be pinned from the
 portal instead of guessed by convention.
 
@@ -293,14 +334,14 @@ something, which is more than the previous three could.
 the point. Both were readers that could not distinguish *absent* from *empty*, and both returned a
 plausible answer instead of an error. In an auditor-facing tool that distinction **is** the product:
 "this agent has no permissions" and "I could not read this agent's permissions" look identical in a
-report and mean opposite things — one is a clean finding, the other is a blind spot being reported
+report and mean opposite things, one is a clean finding, the other is a blind spot being reported
 as a clean finding. A control report that cannot tell them apart will eventually certify something
 nobody looked at.
 
 **The rule this adds:** *a helper that classifies evidence must be tested against its own edge
 cases before it is pointed at real data.* The probe tests Graph; nothing was testing the probe.
 
-#### Addendum, same day — the self-test failed on its first run, and it was right
+#### Addendum, same day: the self-test failed on its first run, and it was right
 
 ```
   SELF-TEST FAILED - not proceeding to the network:
@@ -315,10 +356,10 @@ Which of the five cases passed is the diagnosis:
 | empty array | `$got = Get-Field …` then `@($got)` | **passed** |
 | 2-item array | `@(Get-Field …)` directly | **failed** |
 
-Same helper, same comma. The only variable was **how the result was captured** — and `Invoke-Probe`
+Same helper, same comma. The only variable was **how the result was captured**, and `Invoke-Probe`
 used the failing idiom.
 
-**Cause — `@($variable)` and `@(command)` are different operations:**
+**Cause:** `@($variable)` and `@(command)` are different operations:
 
 | Expression | What it does |
 |---|---|
@@ -328,63 +369,63 @@ used the failing idiom.
 So the comma that fixed the empty-array bug *created* this one. Without it an empty array vanished;
 with it, a populated array arrives wrapped unless it lands in a variable first. **Same arity
 confusion, opposite hat.** `$items[0]` would have handed back the entire array instead of the first
-record — the envelope-as-entity bug again, one level down.
+record, the envelope-as-entity bug again, one level down.
 
 **Fix:** every call site assigns before wrapping (`$rawValue = Get-Field …; $items = @($rawValue)`),
 in `Invoke-Probe` and at both `Show-Tags` call sites. The capture rule is written out in full at the
-top of `Test-GetFieldContract`, and cases now pin **0, 1 and 2** items — 1 especially, because 1 is
+top of `Test-GetFieldContract`, and cases now pin **0, 1 and 2** items, 1 especially, because 1 is
 also what a wrapped array reports, so that is where a capture bug hides best.
 
 **`Get-Keys` deliberately does NOT use the comma** and must stay that way: it is read via
 `(Get-Keys -Obj $r) -contains 'value'`, the single test that decides collection-vs-entity. Add a
 comma there and `-contains` is **always false**, every response classifies as a single entity, and
 the original bug returns wholesale. Four `Get-Keys` cases now pin that asymmetry against a future
-tidy-up that "makes the helpers consistent" — 9 assertions in total.
+tidy-up that "makes the helpers consistent", 9 assertions in total.
 
 **At scale:** worth noticing that this bug class has now produced **four** different wrong answers
-from the same script — absent-vs-empty twice, and arity twice — and not one of them crashed on the
+from the same script, absent-vs-empty twice, and arity twice, and not one of them crashed on the
 line that was wrong. The self-test cost about twenty lines and caught the fourth one in under a
 second, before it could touch tenant data and produce a fifth plausible-looking report. **That is
 the argument for testing the instrument, not just the subject**, and it is the honest answer to
-"how do you know your tool is right?" — *because it refuses to run when it isn't.*
+"how do you know your tool is right?", *because it refuses to run when it isn't.*
 
-### 2026-10-25 — there is no tag called `agent`, and finding that out exposed two worse bugs
+### 2026-10-25: there is no tag called `agent`, and finding that out exposed two worse bugs
 
 **The ground-truth step worked on its first run.** Three findings, in increasing order of
 seriousness.
 
 #### 1. The real agent tag vocabulary
 
-`tags -contains 'agent'` matched **0 of 17** applications. The agent is tagged — with four tags,
+`tags -contains 'agent'` matched **0 of 17** applications. The agent is tagged, with four tags,
 none of them `agent`:
 
 | Tag | What it is |
 |---|---|
 | `AgenticApp` | platform marker: this is an agent |
 | `AIAgentBuilder` | platform marker: built by an agent builder |
-| `AgentCreatedBy:CopilotStudio` | **provenance** — which builder created it |
+| `AgentCreatedBy:CopilotStudio` | **provenance**, which builder created it |
 | `power-virtual-agents-1a2b3c4d-…` | the **Power Platform environment** it belongs to |
 
 **The real vocabulary is better than the one I assumed.** `agent` would have been a bare boolean.
-These carry the **builder** and the **environment** — provenance and blast radius — and neither is
+These carry the **builder** and the **environment**, provenance and blast radius, and neither is
 exposed on any documented Graph property. `AgentBuilder` and `AgentEnvironmentId` are now extracted
 into the inventory record, which gives the attestation record two facts it could not otherwise get.
 
 *Scope of the evidence: one agent, one builder, one tenant.* Matched as a **family**, with the
 matching tags recorded in `AgentTagsMatched`, so the next agent either confirms the pattern or
-extends it — and the inventory says which.
+extends it, and the inventory says which.
 
 #### 2. `$top=999` returned 100 objects
 
 The service-principal table reported *"100 total"*. That is **Graph's page size, not the tenant's
-count** — the listing stops at object id `47…` and `@odata.nextLink` was never followed. So
+count**, the listing stops at object id `47…` and `@odata.nextLink` was never followed. So
 *"0 service principals carry tag X"* was only ever true of the first hundred objects.
 
 **Fixed** with a proper `@odata.nextLink` loop and a 50-page guard. **An inventory tool that
 silently reads one page is worse than one that refuses to run:** it reports a clean result for data
 it never looked at, and nothing in the output says so.
 
-#### 3. The worst one — the agent was tagged on the APPLICATION, and only service principals were classified
+#### 3. The worst one: the agent was tagged on the APPLICATION, and only service principals were classified
 
 Agent classification (`IsAgentClassified`, `AgentDetectionMethod`) was computed **only in the
 service-principal branch** of `01-Get-NHIInventory.ps1`. The application record had no agent fields
@@ -397,7 +438,7 @@ missing that property is never selected.** So `IAM-18` and `IAM-16` would have r
 agent population → NOT APPLICABLE** in a tenant that demonstrably contains an agent.
 
 **The headline finding of this entire lab, scoped out of its own control report by a missing
-field — and the report would have looked clean.**
+field, and the report would have looked clean.**
 
 **Fix:** the application record now carries the same agent shape as the service-principal record
 (`Tags`, `AgentTagsMatched`, `AgentDetectionMethod`, `AgentBuilder`, `AgentEnvironmentId`,
@@ -407,14 +448,14 @@ they are service-principal properties and pretending otherwise would be the oppo
 
 **At scale, and this is the one to remember:** all three bugs produced *clean-looking output*. A
 missing tag matched nothing, a truncated page reported a total, and a missing property scoped a
-control to zero. **`NOT APPLICABLE` is the most dangerous string a control report can print** — it
+control to zero. **`NOT APPLICABLE` is the most dangerous string a control report can print**, it
 means "no population found", and nothing in it distinguishes *there is nothing to check* from *I
 failed to find what was there*. Any control framework that lets a scoping bug render as compliance
 will eventually certify an estate nobody enumerated. **Scope emptiness must be evidenced, not
 assumed:** when a population comes back empty, the report has to say what it searched and how, so
 an auditor can tell which of the two happened.
 
-### 2026-10-25 — the probe answered its question, and the answer is void: no negative control
+### 2026-10-25: the probe answered its question, and the answer is void: no negative control
 
 **Symptom:** the pinned run returned a clean, confident verdict:
 
@@ -430,7 +471,7 @@ agentIdentityType    on SERVICE PRINCIPAL → 200, accepted but not returned →
 **Expected:** a mix. Some properties present, some absent, some 400.
 
 **Why six identical verdicts is the tell.** That would mean all five agent properties exist and
-all five are null — on an object that demonstrably *is* an agent. `isEntraAgentId` in particular:
+all five are null, on an object that demonstrably *is* an agent. `isEntraAgentId` in particular:
 either it is `true` here, or this is not an Agent ID and the property should be `false`, not absent.
 
 **Cause: the script's entire interpretive frame was an untested premise.** It reads
@@ -441,13 +482,13 @@ either it is `true` here, or this is not an Agent ID and the property should be 
 | 200, X not in the response | X **exists** and is null |
 
 That second row was never verified. If Graph **silently ignores unknown `$select` names** on this
-endpoint, then "accepted but not returned" is what *every* name produces — real or invented — and
+endpoint, then "accepted but not returned" is what *every* name produces, real or invented, and
 all six verdicts are void, including the one the script exists to produce.
 
 **This is the same error as the "PROVEN" tag claim, in the same script:** a foundational premise
 asserted instead of measured, with every later conclusion resting on it.
 
-**Fix — a negative control, running FIRST:** `$select=id,zzzNotARealPropertyName9f3a`.
+**Fix:** a negative control, running FIRST. `$select=id,zzzNotARealPropertyName9f3a`.
 
 - **400** → Graph validates `$select`; "accepted but not returned" is real evidence.
 - **200** → Graph ignores unknown names; the frame is dead and the report says so in place of its
@@ -458,7 +499,7 @@ control comes back 200.
 
 #### The route that needs no interpretation at all
 
-The run also dumped the application's **default projection** — all 50 fields an unfiltered `GET`
+The run also dumped the application's **default projection**, all 50 fields an unfiltered `GET`
 returns. That list is trustworthy by construction: whatever Graph returns unasked exists and is
 readable, no `$select` semantics involved.
 
@@ -469,12 +510,12 @@ without `$select`. The same default-projection dump plus an `/agent/i` field swe
 **service principal**, which had never been recorded and is the object that actually holds
 permissions. If nothing agent-shaped appears there either, that is the strongest available form of
 the headline: *the agent is identifiable in this tenant only by its tags, and no agent-specific
-property is readable on it at all* — a claim that survives whatever `$select` turns out to do.
+property is readable on it at all*, a claim that survives whatever `$select` turns out to do.
 
 #### Two side findings from the same run
 
 **Paging fix confirmed.** Service principals went **100 → 325** across 4 pages, tagged objects
-**52 → 186**. The agent's service principal (`1a2b3c4d-…`) sits past the first page — so the earlier
+**52 → 186**. The agent's service principal (`1a2b3c4d-…`) sits past the first page, so the earlier
 "0 service principals carry the agent tag" was purely the truncation artifact, now proven rather
 than suspected.
 
@@ -487,25 +528,25 @@ docs.**
 | servicePrincipal `1a2b3c4d-…` | `AgenticApp`, **`AgenticInstance`**, `AIAgentBuilder`, `AgentCreatedBy:CopilotStudio`, `power-virtual-agents-…` |
 
 Same name, same builder, same environment. The only difference is `AgenticInstance` on the service
-principal. **The application is the agent's definition; the service principal is its instance** —
+principal. **The application is the agent's definition; the service principal is its instance**,
 the blueprint/agent-identity shape, expressed in tags instead of properties.
 
 **This has a direct control-report consequence, and it is probably the 28-rows-for-15-identities
 duplication:** one agent appears **twice**, as two object classes. A naive agent count
-double-counts it, and worse, the two are not interchangeable — only the Instance can hold
+double-counts it, and worse, the two are not interchangeable, only the Instance can hold
 permissions or sign in. A control about what an agent can *reach* must be scored against the
 service principal; a control about how it was *defined* belongs to the application. Scoring both
 identically reports every agent finding twice and attributes half of them to an object that cannot
 have the problem. Recorded as `AgentObjectRole` (`Instance` / `Definition`) on both records rather
-than acted on silently, because this is one agent from one builder — a pattern, not yet a rule.
+than acted on silently, because this is one agent from one builder, a pattern, not yet a rule.
 
 **At scale:** every probe needs a negative control, and the cost of omitting one is not a wrong
-answer — it is a *confident* wrong answer that agrees with the hypothesis. This script has now
+answer but a *confident* wrong answer that agrees with the hypothesis. This script has now
 produced five of those. The pattern across all five is identical: **an untested premise at the
 foundation, and a verdict that reads as a finding.** A tool that will be shown to an auditor needs
 to state what it assumed, not just what it concluded.
 
-### 2026-10-25 — four runs probed the one object guaranteed not to have the property
+### 2026-10-25: four runs probed the one object guaranteed not to have the property
 
 **The portal found this, not the script.** Agents | Agent identities, with and without its filter:
 
@@ -517,25 +558,25 @@ to state what it assumed, not just what it concluded.
 **Entra itself classifies `jobs-alert-agent` as not using an agent identity.** It is the
 documented service-principal fallback.
 
-#### Consequence 1 — a non-finding reported as a finding
+#### Consequence 1: a non-finding reported as a finding
 
 Every probe run so far targeted `jobs-alert-agent`, and reported `isEntraAgentId` as *"exists, not
 populated"*. That property was never going to be there. **Wrong object.** The absence is correct
 and expected, and reporting it as a result was a category error on top of the untested-`$select`
-problem — the two compounded, and the output looked like a finding either way.
+problem, the two compounded, and the output looked like a finding either way.
 
 It also means the tag family is the **only** route to classifying this agent, which raises the
 value of the `AgenticApp` / `AgenticInstance` / `AgentCreatedBy:` vocabulary considerably: for an
-SP-secured agent, tags are not weak evidence, they are the **only** evidence.
+SP-secured agent, tags are the **only** evidence.
 
-#### Consequence 2 — the one that matters: a possible agent undercount
+#### Consequence 2: the one that matters: a possible agent undercount
 
 `Root-agents` and `MSTeams-Agent` appeared in **neither** the 17 applications **nor** the 325
-service principals the probe enumerated — and that enumeration is now properly paged, so
+service principals the probe enumerated, and that enumeration is now properly paged, so
 truncation is ruled out.
 
 `01-Get-NHIInventory.ps1` reads applications, servicePrincipals and managed identities. **If true
-agent identities are not addressable as service principals, this script cannot see them at all** —
+agent identities are not addressable as service principals, this script cannot see them at all**,
 it would report 1 agent in a tenant containing 3, and the control report would inherit that
 silently, scoring IAM-18 against a third of the population while printing nothing about the rest.
 
@@ -546,23 +587,23 @@ That is the undercount argument pointing the **other** way. Both can be true at 
 | Agent-ID inventory | app-registration agents (the original claim) |
 | application/servicePrincipal inventory | true Agent IDs (this one) |
 
-**If both hold, neither view alone is a complete agent inventory** — which is a stronger and far
+**If both hold, neither view alone is a complete agent inventory**, which is a stronger and far
 more useful finding than either in isolation, and it is demonstrable rather than asserted.
 
 **Not acted on yet, deliberately.** The enumeration stays as it is until measured. The probe now
 takes `-AgentIdentityObjectId`, resolves each id through `/beta/directoryObjects/{id}` for its
 `@odata.type`, and reports whether `/beta/servicePrincipals/{id}` reaches it. It also dumps the
-default projection and every `/agent/i` field — so if a true Agent ID *does* carry
+default projection and every `/agent/i` field, so if a true Agent ID *does* carry
 `agentCapabilities`, it will be read **without `$select`**, which sidesteps the negative-control
 problem entirely.
 
-**At scale:** this is the fifth bug in this script with an identical shape — *an untested premise
+**At scale:** this is the fifth bug in this script with an identical shape, *an untested premise
 about what is being measured.* Not a coding error. Each time, the instrument worked and was aimed
 at the wrong thing, and the output was confident regardless. **The portal disagreeing with the tool
 is the cheapest audit available**, and it found in one screenshot what four instrumented runs
 missed. Check the UI against the API before trusting either.
 
-### 2026-10-25 — the negative control fired, and the real property names were nothing like the guesses
+### 2026-10-25: the negative control fired, and the real property names were nothing like the guesses
 
 **The control, one request, decisive:**
 
@@ -572,7 +613,7 @@ Fields returned: @odata.context, id
 ```
 
 **Graph does not validate `$select` on these endpoints.** A property name that cannot exist was
-accepted and silently dropped — identically to all six agent properties. So *"200, accepted but not
+accepted and silently dropped, identically to all six agent properties. So *"200, accepted but not
 returned"* was never evidence of anything, and every verdict built on it is **void**, including the
 one this script was written to produce. The suspicion is now measured fact.
 
@@ -580,12 +621,12 @@ one this script was written to produce. The suspicion is now measured fact.
 
 `GET /beta/servicePrincipals/1a2b3c4d-…` with no `$select` returns **61 fields** and
 `@odata.type = #microsoft.graph.agentIdentity`. A plain service principal returns 50. The 11-field
-delta is the answer four runs were reaching for — and every one of them is readable **without
+delta is the answer four runs were reaching for, and every one of them is readable **without
 `$select`**, so none of it needs interpreting:
 
 | Property | What it gives you |
 |---|---|
-| `@odata.type` | `#microsoft.graph.agentIdentity` — **the** discriminator |
+| `@odata.type` | `#microsoft.graph.agentIdentity`, **the** discriminator |
 | `agentIdentityBlueprintId` | the blueprint link (what I called `agentSubjectParentId`) |
 | `agentAppId` | the agent's app id |
 | `instanceMode` | |
@@ -596,8 +637,8 @@ delta is the answer four runs were reaching for — and every one of them is rea
 | `lifecyclePolicyNonComplianceDisablementDateTime` | **when it gets auto-disabled for non-compliance** |
 
 **`isEntraAgentId`, `agentSubjectParentId`, `agentSubjectType`, `agentIdentityType` and
-`agentCapabilities` do not exist.** They came from reading beta `$metadata` — which catalogues every
-type Graph knows, not what an object returns — and were "confirmed" by the `$select` probe that the
+`agentCapabilities` do not exist.** They came from reading beta `$metadata`, which catalogues every
+type Graph knows, not what an object returns, and were "confirmed" by the `$select` probe that the
 control has now invalidated. Script 01's two primary discriminators were **both fictional**.
 
 The lifecycle four are the find. Entra maintains an agent's policy-compliance state *and its
@@ -606,18 +647,18 @@ platform**, which nothing in this lab now has to infer.
 
 **Measured in the lab tenant:** both agents return
 `agentAppId = agentIdentityBlueprintId = 1a2b3c4d-0005-4000-8000-00000000a005`. One blueprint, two
-agents — matching the portal exactly, and confirming that **blueprint count is the security
+agents, matching the portal exactly, and confirming that **blueprint count is the security
 boundary**: the blueprint holds credentials, the agents hold none.
 
 #### My own bug, in the same output
 
 The script printed *"NOT a service principal … cannot see this object at all"* and, two lines later,
-*"Reachable via /beta/servicePrincipals/{id}: **YES** (61 fields)"* — for the same object. I tested
+*"Reachable via /beta/servicePrincipals/{id}: **YES** (61 fields)"*, for the same object. I tested
 `@odata.type -notmatch 'servicePrincipal'` and read invisibility out of a **string mismatch**.
 `agentIdentity` is a *subtype* of servicePrincipal, so it is addressable there despite the name.
 
 Same error shape as everything else here: a verdict inferred from something that was never asked.
-The block now reports the type and tests the real question — **collection membership**, since
+The block now reports the type and tests the real question, **collection membership**, since
 script 01 builds its inventory by *enumerating* `/servicePrincipals`, not by fetching ids.
 
 #### The split that is actually the headline
@@ -628,7 +669,7 @@ script 01 builds its inventory by *enumerating* `/servicePrincipals`, not by fet
 | SP-secured (`jobs-alert-agent`) | **nothing.** 50-field plain SP, no field matching `/agent/i` |
 
 Two classes of agent in one tenant with completely different evidence available. For the SP-secured
-class the tag family is not a weak last-resort signal — **it is the only signal there is.** An
+class the tag family is not a weak last-resort signal, **it is the only signal there is.** An
 auditor asking *"show me every agent and its lifecycle compliance"* gets a real answer for two of
 three agents and silence for the third.
 
@@ -636,7 +677,7 @@ three agents and silence for the third.
 
 #### A second live bug, found while verifying the fix
 
-Script 05 decided agent-ness from `Classification -eq 'Agent'` — but script 03 writes
+Script 05 decided agent-ness from `Classification -eq 'Agent'`, but script 03 writes
 `Classification` as `ManagedIdentity` / `TenantOwned` / `External` and **never** `'Agent'`. Dead
 branch. Agent-ness therefore collapsed to *"has an agent finding"*, which fails in the worst
 direction: **a correctly governed agent has no agent findings**, so it was not counted as an agent,
@@ -649,13 +690,13 @@ to the findings file, 05 reads them instead of inferring. Population membership 
 **identity**, never of its findings. Older findings files fall back to the old inference and the
 report now says so in a header note rather than presenting the count as authoritative.
 
-**At scale:** the pattern across all of today's bugs is one thing — *a verdict read out of something
+**At scale:** the pattern across all of today's bugs is one thing, *a verdict read out of something
 that was never measured*. `$metadata` treated as a statement about objects; a 200 treated as proof a
 property exists; a type name treated as a reachability claim; the absence of findings treated as the
 absence of a population. None crashed. All produced confident output. **The negative control is the
 cheapest defence against the entire class**, and it cost one request.
 
-### 2026-10-25 — a Critical finding that could not fail to fire, accusing Microsoft
+### 2026-10-25: a Critical finding that could not fail to fire, accusing Microsoft
 
 **Symptom:** the three most serious findings in the report were
 
@@ -666,21 +707,21 @@ cheapest defence against the entire class**, and it cost one request.
 ```
 
 **Expected:** nothing. The portal's **Owners and sponsors** blade for Root-agents lists the same
-user **twice** — once as `Full owner`, once as `Sponsor`. Every agent was correctly sponsored.
+user **twice**, once as `Full owner`, once as `Sponsor`. Every agent was correctly sponsored.
 
-**Cause — a guard that was described but never written.** RULE 1b carried this comment:
+**Cause:** a guard that was described but never written. RULE 1b carried this comment:
 
 > *PROPERTY NAME NOT YET VERIFIED … Until it does, this rule is inert … it runs only when the
 > inventory actually carries the field, so it cannot fire wrongly on data that does not have it.*
 
-It did not check that. It checked `if (-not $id.SponsorId)` — against a `SponsorId` that script 01
+It did not check that. It checked `if (-not $id.SponsorId)`, against a `SponsorId` that script 01
 hardcoded to `$null` with the note *"Null is honest; a guess is not."* The note was right; the
 consequence was not. `-not $null` is always true, so **`NO_SPONSOR` fired at Critical on every
 agent identity in every run that ever executed.**
 
 **Why this is the worst of the lab's bugs so far.** The others produced wrong numbers. This one
-produced a *confident accusation about someone else's product* — "Microsoft makes sponsorship
-mandatory at creation, so this should not be possible — something bypassed the control path" — at
+produced a *confident accusation about someone else's product*, "Microsoft makes sponsorship
+mandatory at creation, so this should not be possible, something bypassed the control path", at
 the top of an auditor-facing report, about a correctly configured tenant. Anyone who checked the
 portal would have found the sponsor in about five seconds, and the tool's credibility with it.
 
@@ -698,19 +739,19 @@ portal would have found the sponsor in about five seconds, and the tool's credib
 
 - **A comment describing a guard is not a guard.** This one asserted inertness for days.
 - **"Field is falsy" and "field was never populated" are different states.** Collapsing them is the
-  same defect as the capability probe that could only confirm its own hypothesis — a check with no
+  same defect as the capability probe that could only confirm its own hypothesis: a check with no
   path to the negative result. The difference is direction: that one fooled me, this one would have
   misled a reader about a vendor.
 
 **At scale:** a finding that cannot fail to fire is indistinguishable from a working detection until
 someone checks the ground truth, and **the more severe the finding, the less likely anyone checks**
-— Critical gets escalated, not verified. Any rule emitting Critical needs a test that proves it can
+, Critical gets escalated, not verified. Any rule emitting Critical needs a test that proves it can
 also emit nothing, and the positive-result finding (`AGENT_SPONSORED`) is what makes that visible on
 every run: if the report never says an agent *is* sponsored, the rule is not discriminating.
 
 ---
 
-### 2026-10-25 — UNMAPPED-01 resolved: there is no control, and that is the finding
+### 2026-10-25: UNMAPPED-01 resolved: there is no control, and that is the finding
 
 `AGENT_FACTORY_CAPACITY` and `DELEGATION_ESCALATION` had no published control mapping, with four
 documents on disk unread. All four have now been read. **No published control objective covers
@@ -719,7 +760,7 @@ either**, and that is a result rather than an outstanding task.
 | Source | What it actually contains |
 |---|---|
 | **NIST NCCoE** concept paper (11pp) | An **agenda, not a catalogue.** Verbatim, p5: *"How do we handle delegation of authority for 'on behalf of' scenarios?"* and *"How do we establish 'least privilege' for an agent, especially when its required actions might not be fully predictable when deployed?"* |
-| **SP 800-207** (Zero Trust) | **Principles, not controls.** Tenet 3 (per-session access) and Tenet 6 (*"all resource authentication and authorization are dynamic and strictly enforced before access is allowed"*) are both in tension with a standing inherited blueprint grant — but a tenet is architectural, not auditable. |
+| **SP 800-207** (Zero Trust) | **Principles, not controls.** Tenet 3 (per-session access) and Tenet 6 (*"all resource authentication and authorization are dynamic and strictly enforced before access is allowed"*) are both in tension with a standing inherited blueprint grant, but a tenet is architectural, not auditable. |
 | **SP 800-63-4** | Identity **proofing and authentication assurance**. Governs how strongly an identity is established, not what a verified identity may delegate afterwards. Out of scope. |
 | **CCM v4.1.1 / AICM v1.1.1** | 247 controls, none for blueprint-to-agent permission inheritance. |
 
@@ -728,15 +769,15 @@ That is a stronger position than a mapping would be: the tool is not failing to 
 is producing evidence for a gap the standards bodies have stated they have not closed. Quote the
 NCCoE question verbatim and report the finding on its own terms.
 
-`AGENT_FACTORY_CAPACITY` — one blueprint able to mint up to 250 agent identities, all inheriting its
-grants — has no analogue in any of the four. It is a platform-specific concentration risk the
+`AGENT_FACTORY_CAPACITY`, one blueprint able to mint up to 250 agent identities, all inheriting its
+grants, has no analogue in any of the four. It is a platform-specific concentration risk the
 published frameworks predate.
 
 **Citing SP 800-207's tenets as though a tenant could PASS or FAIL them would be the same overreach
 as the retired `IAM-AG-*` identifiers.** They are referenced as rationale in the control map and
 never as control ids.
 
-### 2026-10-25 — first write to a tenant: 403 on group creation took the whole fixture down
+### 2026-10-25: first write to a tenant: 403 on group creation took the whole fixture down
 
 **The first time anything in this repository wrote to a directory.** Every other script reads.
 
@@ -751,16 +792,16 @@ Status: 403 (Forbidden) ErrorCode: Authorization_RequestDenied
 
 **Expected:** owners assigned to 17 of 19 identities. The group is needed by one bucket.
 
-**Cause 1 — a documented permission list that did not match the code.** The NOTES block names
+**Cause 1:** a documented permission list that did not match the code. The NOTES block names
 the scopes this script needs. Group creation was added without adding `Group.ReadWrite.All` to it,
 and `Directory.ReadWrite.All` does not reliably cover creating groups. The list was wrong, so the
 PIM activation it told you to do was also wrong.
 
-**Cause 2, and the one worth keeping — a 15% sub-step aborted the other 85%.** The call ran with
+**Cause 2, the one worth keeping:** a 15% sub-step aborted the other 85%. The call ran with
 `-ErrorAction Stop` under a script-wide `$ErrorActionPreference = 'Stop'`, so one optional bucket's
 failure ended the run before a single owner was assigned. **A step that serves one bucket must
 degrade to skipping that bucket.** Same necessary-versus-sufficient distinction the control map
-already makes about testability — applied to execution instead of evidence.
+already makes about testability, applied to execution instead of evidence.
 
 **Fix:** group creation is now wrapped, and on failure warns, names the missing scope, explains
 the consequence (*those identities report `NO_OWNER` instead of `NO_HUMAN_OWNER`*), and lets the
@@ -771,17 +812,17 @@ other five buckets build. `Group.ReadWrite.All` is documented as **optional**, w
 
 | Problem | Fix |
 |---|---|
-| `"aad-extensions-app. Do not modify. Used by AAD for storing user data."` was selected as a target. It is tenant-owned so it passed every filter — and Microsoft put the warning *in the display name*. | Name-pattern exclusions. "Probably harmless" is not the standard for the one script that writes, and modifying an object labelled DO NOT MODIFY is indefensible in review whatever the outcome. |
-| `Root-agents` appeared in **both** the ActiveOwner and GroupOwner buckets, reading as a duplicate assignment. | It was not one — three distinct objects share that display name. Console output now prints an 8-char object id. **In Entra, DisplayName is not an identifier** — third time that has bitten this project. |
+| `"aad-extensions-app. Do not modify. Used by AAD for storing user data."` was selected as a target. It is tenant-owned so it passed every filter, and Microsoft put the warning *in the display name*. | Name-pattern exclusions. "Probably harmless" is not the standard for the one script that writes, and modifying an object labelled DO NOT MODIFY is indefensible in review whatever the outcome. |
+| `Root-agents` appeared in **both** the ActiveOwner and GroupOwner buckets, reading as a duplicate assignment. | It was not one, three distinct objects share that display name. Console output now prints an 8-char object id. **In Entra, DisplayName is not an identifier**, third time that has bitten this project. |
 
 **At scale:** the write path is where a governance tool stops being an observer. Everything else
-here fails safe by construction — a read that 403s returns nothing and the report says so. A write
+here fails safe by construction, a read that 403s returns nothing and the report says so. A write
 that 403s halfway through leaves a tenant in a state neither the tool nor the operator planned,
 which is why the manifest is flushed after every single change rather than at the end. **This run
-proved that design: nothing was written, so nothing needed reverting — and had the group succeeded
+proved that design: nothing was written, so nothing needed reverting, and had the group succeeded
 and an owner assignment failed, the manifest would already have held the completed ones.**
 
-### 2026-10-25 — agent identities refuse owner writes that every other service principal accepts
+### 2026-10-25: agent identities refuse owner writes that every other service principal accepts
 
 **This one is a finding, not a defect.** It is the cleanest controlled result the lab has produced.
 
@@ -797,12 +838,12 @@ and an owner assignment failed, the manifest would already have held the complet
 **The control is as tight as it gets.** Same session, same `Application.ReadWrite.All`, same
 `New-MgServicePrincipalOwnerByRef`, same loop iteration structure, consecutive calls. **The only
 variable is the object class.** Ordinary service principals accepted the write; agent identities
-refused it. Confirmed across the run — every non-agent target succeeded.
+refused it. Confirmed across the run, every non-agent target succeeded.
 
 **So `agentIdentity` sits behind a separate authorization boundary for ownership writes, and
 `Application.ReadWrite.All` does not cross it.** An agent identity is an OData *subtype* of
-servicePrincipal — readable at `/servicePrincipals/{id}`, returned by the collection, carrying all
-50 base properties — and yet not writable the same way. **Subtype for reads, distinct object for
+servicePrincipal, readable at `/servicePrincipals/{id}`, returned by the collection, carrying all
+50 base properties, and yet not writable the same way. **Subtype for reads, distinct object for
 writes.**
 
 #### The corollary, which is more serious than the write failure
@@ -812,35 +853,35 @@ shows `Root-agents` with a **Full owner** *and* a **Sponsor**. **It did not skip
 `/servicePrincipals/{id}/owners` does not return what the Agents blade displays.
 
 That means `OwnerCount == 0` on an agent identity means **"not readable by this route"**, not
-**"unowned"** — and emitting `NO_OWNER` at **High** on it would be the `NO_SPONSOR` bug a second
+**"unowned"**, and emitting `NO_OWNER` at **High** on it would be the `NO_SPONSOR` bug a second
 time, in the same week: a severe finding firing on correctly-governed objects because the tool is
 reading the wrong relationship.
 
 **Fix:** `AGENT_OWNER_NOT_IN_SP_OWNERS` (Info), phrased as a gap in the tool. `NO_OWNER` at High is
 now reserved for objects where zero genuinely means zero. Agent identities are also excluded from
-fixture targeting — they are platform-owned and platform-sponsored at creation, so the fixture adds
+fixture targeting, they are platform-owned and platform-sponsored at creation, so the fixture adds
 nothing and generates one guaranteed failure per agent per run.
 
 **Three Entra relationships now confirmed invisible to the obvious Graph route:**
 
 | Relationship | Visible in portal | Returned by the obvious Graph call |
 |---|---|---|
-| Managed identity accountability | Yes (Azure RBAC) | No — different control plane entirely |
+| Managed identity accountability | Yes (Azure RBAC) | No, different control plane entirely |
 | Agent **sponsor** | Yes | No |
 | Agent **owner** | Yes | No |
 
 **At scale, and this is the thesis:** *a governance tool that reads only `/servicePrincipals` is
-structurally blind to how agents are actually governed.* Not incomplete — **blind**, and silently,
+structurally blind to how agents are actually governed.* Not incomplete, **blind**, and silently,
 because every one of those gaps returns an empty collection rather than an error. An empty
 collection renders as a clean row. **Three separate accountability relationships in one tenant, all
 populated in the portal, all absent from the API surface the entire NHI tooling category is built
 on.** That is the finding worth publishing, and it is now demonstrated three independent ways
 rather than argued once.
 
-### 2026-10-25 — ORPHANED_OWNER could never fire. The Critical finding was unreachable code.
+### 2026-10-25: ORPHANED_OWNER could never fire. The Critical finding was unreachable code.
 
-**Symptom:** after the fixture assigned owners — confirmed in the portal, two active users on
-`app1` and the departed user on `autowayne` — the ownership CSV still reported no owners, and no
+**Symptom:** after the fixture assigned owners, confirmed in the portal, two active users on
+`app1` and the departed user on `autowayne`, the ownership CSV still reported no owners, and no
 `ORPHANED_OWNER` appeared anywhere.
 
 **Two separate causes, and the second is far worse than the first.**
@@ -848,14 +889,14 @@ rather than argued once.
 #### 1. The inventory was stale (the boring one)
 
 `nhi_inventory.json` carried `GeneratedUtc: 2026-10-25T06:41:43Z`; the fixture wrote owners at
-~23:04. Everything downstream — CSV, findings, control report, attestation — derived from that one
+~23:04. Everything downstream, CSV, findings, control report, attestation, derived from that one
 file, so every artifact described the tenant as it was seventeen hours earlier.
 
 `01` is the only script that talks to the tenant. **Nothing downstream can be fresher than the
 inventory it reads**, and none of the outputs said how old their input was. Re-running `01` fixes
 the data; the reporting gap is addressed separately.
 
-#### 2. `accountEnabled` is not in the /owners response — so ORPHANED_OWNER was dead code
+#### 2. `accountEnabled` is not in the /owners response: so ORPHANED_OWNER was dead code
 
 The inventory records that *did* have owners looked like this:
 
@@ -874,13 +915,13 @@ if ($o.AccountEnabled -eq $false) { $orphaned = $true }
 ```
 
 **`$null -eq $false` is `False` in PowerShell.** So `$orphaned` was never set, and
-`ORPHANED_OWNER` — the Critical finding this tool's own documentation calls *"the one that lands
-hardest in a conversation"* — **could not be produced by any input whatsoever.** The entire
+`ORPHANED_OWNER`, the Critical finding this tool's own documentation calls *"the one that lands
+hardest in a conversation"*, **could not be produced by any input whatsoever.** The entire
 `DepartedOwner` bucket of the lab fixture, 20% of the distribution, existed to feed a rule with no
 reachable output.
 
 **Fix:** `Get-OwnerSummary` resolves each owner's `accountEnabled` with a targeted lookup, **cached
-by owner id** — a handful of owners covers a whole estate, so this is 3 calls in the lab, not 16.
+by owner id**, a handful of owners covers a whole estate, so this is 3 calls in the lab, not 16.
 Owners now carry `EnabledResolved`, and script 03 emits `OWNER_STATE_UNRESOLVED` (Info) when the
 state is unknown, because **an owner whose state could not be determined must not be counted as a
 governed one.** Groups legitimately have no `accountEnabled` and are marked resolved at source.
@@ -889,16 +930,16 @@ governed one.** Groups legitimately have no `accountEnabled` and are marked reso
 
 | Rule | Defect |
 |---|---|
-| `NO_SPONSOR` | could **only** fire — tested an always-null field, accused Microsoft on every agent |
-| `NO_OWNER` on agents | fired **falsely** — read a relationship the portal populates and Graph does not return |
-| `ORPHANED_OWNER` | could **never** fire — tested a field the API never returns |
+| `NO_SPONSOR` | could **only** fire, tested an always-null field, accused Microsoft on every agent |
+| `NO_OWNER` on agents | fired **falsely**, read a relationship the portal populates and Graph does not return |
+| `ORPHANED_OWNER` | could **never** fire, tested a field the API never returns |
 
 **All three were rules whose input was never populated. None of them failed loudly.** Two produced
-false findings and one produced silence, and silence is the one that survives review — nobody
+false findings and one produced silence, and silence is the one that survives review, nobody
 investigates a finding that isn't there.
 
 **At scale, and this is the rule to carry forward:** *every detection needs a test that proves it
-can reach each of its outcomes.* Not that it runs — that it can **fire** and can **not-fire** on
+can reach each of its outcomes.* Not that it runs, that it can **fire** and can **not-fire** on
 demand. A rule that has never once produced its finding against known-bad input is indistinguishable
 from a rule that is working perfectly in a healthy tenant, and the lab fixture exists precisely to
 supply that known-bad input. It found this by being run, which is the entire argument for running it.

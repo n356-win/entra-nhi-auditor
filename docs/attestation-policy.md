@@ -1,6 +1,6 @@
 # Attestation policy
 
-**Version 0.1 — draft. Lab document.**
+**Version 0.1, draft. Lab document.**
 Referenced by `04-Invoke-AttestationCycle.ps1` and by every report it generates.
 
 > **Defaults, not decisions.** Every number below is a starting position chosen for a reason that
@@ -26,7 +26,7 @@ pretended at here.
 
 ---
 
-## 2. Cycle length — 90 days
+## 2. Cycle length: 90 days
 
 **Default: quarterly.** Reasoning:
 
@@ -50,7 +50,7 @@ and the review becomes theatre.
 |---|---|---|
 | **Approved** | The owner confirms the identity is still required and the access is still appropriate | None. Record and close. |
 | **Rejected** | The owner confirms it is no longer needed | Queue for removal in the next maintenance window |
-| **No Response** | The owner did not reply by the due date | **Escalate — see §4** |
+| **No Response** | The owner did not reply by the due date | **Escalate, see §4** |
 
 ### The design decision, stated once and kept
 
@@ -78,7 +78,7 @@ Any report that sorts Rejected above No Response has the risk model backwards.
 | 21 | First reminder to the owner |
 | 28 | Escalate to the owner's manager |
 | 35 | Escalate to the security team for manual review |
-| 45 | **Access suspended pending confirmation** — not deleted |
+| 45 | **Access suspended pending confirmation**, not deleted |
 
 **Suspend, do not delete.** Deletion is irreversible and will eventually break something that
 mattered. Disabling an identity is reversible in seconds and makes exactly the same point: if
@@ -88,7 +88,7 @@ nothing breaks in two weeks, nothing needed it.
 
 ---
 
-## 5. Who is accountable — sponsor, then owner
+## 5. Who is accountable: sponsor, then owner
 
 **Revised 22 Oct 2026.** This section previously treated *owner* as the accountability role. For
 agents that is wrong, and Microsoft's own model is clearer than mine was.
@@ -97,16 +97,16 @@ agents that is wrong, and Microsoft's own model is clearer than mine was.
 
 > *"**Every single agent ID must have a sponsor.** So this is the person responsible. They have
 > accountability for the agent. **They decide is this agent is still needed or not.** So you won't
-> end up with these orphaned agents. Now **optionally** I can add owners — that would be from a
-> technology perspective."* — Savill, 21:06
+> end up with these orphaned agents. Now **optionally** I can add owners, that would be from a
+> technology perspective."*, Savill, 21:06
 
 | Role | Mandatory? | Attest to them? |
 |---|---|---|
-| **Sponsor** | **Yes, on agent identities** | **Yes — this is the attestation** |
+| **Sponsor** | **Yes, on agent identities** | **Yes, this is the attestation** |
 | Owner | No | Only if there is no sponsor |
 | Manager | No | No |
 
-**The sponsor's defined job — "decides whether this agent is still needed" — is literally the
+**The sponsor's defined job, "decides whether this agent is still needed", is literally the
 attestation question.** Address the cycle to the sponsor. An attestation sent to a technical owner
 asks the wrong person: they can change the agent, but they were never asked to justify it.
 
@@ -116,7 +116,7 @@ asks the wrong person: they can change the agent, but they were never asked to j
 > application service principal can.**
 
 Microsoft made sponsorship mandatory for the new object class and left the old one alone.
-Pre-platform Copilot Studio agents — which many tenants are still producing — have **no mandatory
+Pre-platform Copilot Studio agents, which many tenants are still producing, have **no mandatory
 accountability at all**. They are exactly the population this cycle exists to catch, and they will
 not self-identify.
 
@@ -128,23 +128,23 @@ not self-identify.
 |---|---|
 | A user object | **Yes** |
 | A service principal listed as owner | **No** |
-| A group | **No** — ask the group and nobody answers |
-| A departed user's account | **No** — this is `ORPHANED_OWNER`, which is worse than no owner |
+| A group | **No**, ask the group and nobody answers |
+| A departed user's account | **No**, this is `ORPHANED_OWNER`, which is worse than no owner |
 
 A service principal owning an identity is not accountability. It is the appearance of accountability,
 which is more dangerous than its absence because it passes a naive check. This is the
 `NO_HUMAN_OWNER` rule, and it exists because a Copilot Studio agent in this lab is owned by
-"Microsoft Copilot Studio Service" — a service principal that cannot be asked anything.
+"Microsoft Copilot Studio Service", a service principal that cannot be asked anything.
 
 **Two owners minimum** for any identity holding escalation permissions. One person leaving should
 not orphan a privileged identity.
 
 ---
 
-## 6. Lab simulation — read this before showing any output to anyone
+## 6. Lab simulation: read this before showing any output to anyone
 
 **Owner responses in this lab are simulated.** `04-Invoke-AttestationCycle.ps1` generates them on a
-weighted random basis — approximately 70% Approved, 10% Rejected, 20% No Response.
+weighted random basis, approximately 70% Approved, 10% Rejected, 20% No Response.
 
 **No real owner has been contacted. No real attestation has taken place.**
 
@@ -157,7 +157,7 @@ that day change the version number of this document.
 
 ---
 
-## 6b. Off-cycle attestation — do not wait ninety days for a new Critical
+## 6b. Off-cycle attestation: do not wait ninety days for a new Critical
 
 **Added 24 Oct 2026.** The quarterly cycle governs the *routine* review. It is not a reason to
 leave a newly-discovered Critical unreviewed for up to three months.
@@ -165,8 +165,8 @@ leave a newly-discovered Critical unreviewed for up to three months.
 **Trigger an off-cycle attestation, for that identity alone, when the weekly scan first reports:**
 
 - `EXCESSIVE_SCOPE_ESCALATION` on an identity that did not have it last week
-- `ORPHANED_OWNER` — the owner has gone and the identity carries accumulated trust nobody holds
-- `NO_SPONSOR` on an agent identity — Microsoft makes sponsorship mandatory at creation, so this
+- `ORPHANED_OWNER`: the owner has gone and the identity carries accumulated trust nobody holds
+- `NO_SPONSOR` on an agent identity: Microsoft makes sponsorship mandatory at creation, so this
   means something bypassed a control
 
 Same escalation ladder as §4, **intervals halved**. This is the existing rule for escalation-
@@ -181,13 +181,13 @@ across quarters is the entire value of the programme.
 
 Each cycle produces:
 
-- `output/attestation_records.json` — what was asked, of whom, when
-- `output/attestation_results.json` — what came back, with the thresholds used
-- `output/attestation_report.md` — the human-readable deliverable
+- `output/attestation_records.json`: what was asked, of whom, when
+- `output/attestation_results.json`: what came back, with the thresholds used
+- `output/attestation_report.md`: the human-readable deliverable
 
 **Retain every cycle. Never overwrite a previous one.** The value of an attestation programme to an
-auditor is not the current cycle — it is being able to produce four consecutive dated cycles and
-show that the non-response rate fell.
+auditor is being able to produce four consecutive dated cycles and show that the non-response
+rate fell.
 
 One cycle is a screenshot. Four cycles is a control.
 

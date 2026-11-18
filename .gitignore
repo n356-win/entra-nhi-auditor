@@ -38,3 +38,8 @@ agent_surface_notes.md
 *.tfvars.json
 crash.log
 crash.*.log
+
+# Editor and tooling backups - git history is the backup
+*.bak
+*.bak-*
+_backups/
