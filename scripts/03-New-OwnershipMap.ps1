@@ -83,6 +83,23 @@ param(
     [string]$InventoryPath = (Join-Path $RunDir 'nhi_inventory.json'),
     [string]$CsvPath       = (Join-Path $RunDir 'nhi_ownership.csv'),
     [string]$FindingsPath  = (Join-Path $RunDir 'nhi_findings.json'),
+
+    # IaC PROVENANCE - ITS OWN OUTPUT, DELIBERATELY. Added 17 November 2026.
+    #
+    # nhi_findings.json answers "what is true of every identity in the tenant".
+    # nhi_provenance.json answers "which of them are declared in Terraform, according to which
+    # state file, read when".
+    #
+    # Those are two different claims, resting on two different pieces of evidence, with two
+    # different shelf lives - the findings hold until the tenant changes, this holds until
+    # somebody runs terraform apply. Folding them into one file meant the coverage percentage
+    # had NO SOURCE RECORDED ANYWHERE, which is the one number from this feature anyone will
+    # ever quote back at you.
+    #
+    # Separating them also means re-running 03 with a state path no longer silently changes
+    # what an existing findings file means. The new claim lands in a new file.
+    [string]$ProvenancePath = (Join-Path $RunDir 'nhi_provenance.json'),
+
     [int]$DormancyDays = 90,
     [int]$LongLivedSecretDays = 180,
 
@@ -325,6 +342,11 @@ function Get-IaCManagedIds {
 
     $set = [System.Collections.Generic.HashSet[string]]::new()
 
+    # Every declared object, kept with its Terraform address, so the provenance output can say
+    # WHICH resource block claims an identity rather than only that something did. A bare list
+    # of GUIDs is not something a reviewer can act on.
+    $declaredObjects = [System.Collections.Generic.List[object]]::new()
+
     # Accept either a state file or a directory containing the conventional filename.
     $file = $Path
     if (Test-Path -Path $Path -PathType Container) {
@@ -334,7 +356,15 @@ function Get-IaCManagedIds {
         throw "Terraform state not found at '$file'. RULE 7 cannot run without it."
     }
 
+    $item  = Get-Item -Path $file
     $state = Get-Content -Path $file -Raw | ConvertFrom-Json
+
+    # Counted before filtering, so the provenance output can show the data/managed split that
+    # trap 1 in the .NOTES above is about. Seeing "2 managed, 1 data" next to a coverage figure
+    # is how a reader confirms the data entry was excluded rather than taking it on trust.
+    $resourcesTotal   = @($state.resources).Count
+    $resourcesManaged = @($state.resources | Where-Object { $_.mode -eq 'managed' }).Count
+    $resourcesData    = @($state.resources | Where-Object { $_.mode -eq 'data' }).Count
 
     if (-not $state.resources) {
         Write-Warning "State file at '$file' declares no resources. RULE 7 will treat every identity as undeclared, which is almost certainly wrong - check you pointed at the right state."
@@ -357,28 +387,75 @@ function Get-IaCManagedIds {
             $a = $inst.attributes
             if (-not $a) { continue }
 
+            $theseIds = [System.Collections.Generic.List[string]]::new()
+
             # Collect every identifier the object might be matched on later. Entra will hand
             # us an object ID in some places and an application (client) ID in others, and
             # which one appears depends on the object class - so index both and let RULE 7
             # test whichever it has.
             foreach ($key in 'object_id', 'client_id', 'application_id', 'principal_id') {
                 $v = $a.$key
-                if ($v -and $v -is [string]) { [void]$set.Add($v.ToLower()) }
+                if ($v -and $v -is [string]) {
+                    [void]$set.Add($v.ToLower())
+                    [void]$theseIds.Add($v.ToLower())
+                }
             }
+
+            $declaredObjects.Add([pscustomobject]@{
+                TerraformAddress = "$($r.type).$($r.name)"
+                ResourceType     = $r.type
+                ResourceName     = $r.name
+                DisplayName      = $a.display_name
+                Identifiers      = @($theseIds)
+            })
         }
     }
 
-    return ,$set
+    # The source metadata travels WITH the result rather than being looked up again by the
+    # caller. A coverage figure whose state file is not named, dated and fingerprinted is a
+    # number with no evidence behind it, and "measured against what?" is the first question a
+    # reviewer asks. The SHA256 is what makes "this is the same file I assessed in November"
+    # checkable rather than asserted.
+    return [pscustomobject]@{
+        Ids      = $set
+        Declared = $declaredObjects
+        Source   = [pscustomobject]@{
+            Path             = $item.FullName
+            FileName         = $item.Name
+            SizeBytes        = $item.Length
+            LastWriteTimeUtc = $item.LastWriteTimeUtc.ToString('o')
+            Sha256           = (Get-FileHash -Path $file -Algorithm SHA256).Hash
+            ReadAtUtc        = (Get-Date).ToUniversalTime().ToString('o')
+            StateVersion     = $state.version
+            TerraformVersion = $state.terraform_version
+            ResourcesTotal   = $resourcesTotal
+            ResourcesManaged = $resourcesManaged
+            ResourcesData    = $resourcesData
+            IdentityObjects  = $declaredObjects.Count
+        }
+    }
 }
 
 
 # Load the managed set ONCE, before the loop, rather than re-reading the file per identity.
 $iacEnabled    = -not [string]::IsNullOrWhiteSpace($TerraformStatePath)
 $iacManagedIds = $null
+$iacSource     = $null
+$iacDeclared   = @()
 
 if ($iacEnabled) {
-    $iacManagedIds = Get-IaCManagedIds -Path $TerraformStatePath
-    Write-Host "IaC provenance: $($iacManagedIds.Count) identifier(s) declared in Terraform state." -ForegroundColor Cyan
+    $iac           = Get-IaCManagedIds -Path $TerraformStatePath
+    $iacManagedIds = $iac.Ids
+    $iacSource     = $iac.Source
+    $iacDeclared   = $iac.Declared
+
+    # The state file is named on screen as well as in the output file. The run that produced a
+    # number and the number itself get separated almost immediately in practice, and whichever
+    # one the reader has in front of them should be able to answer "measured against what?".
+    Write-Host "IaC provenance: $($iacManagedIds.Count) identifier(s) across $($iacDeclared.Count) declared object(s)." -ForegroundColor Cyan
+    Write-Host "  state file : $($iacSource.Path)" -ForegroundColor DarkGray
+    Write-Host "  written    : $($iacSource.LastWriteTimeUtc) UTC" -ForegroundColor DarkGray
+    Write-Host "  resources  : $($iacSource.ResourcesManaged) managed, $($iacSource.ResourcesData) data (data entries are NOT counted)" -ForegroundColor DarkGray
 } else {
     Write-Verbose "No -TerraformStatePath supplied. RULE 7 (IaC provenance) skipped."
 }
@@ -389,6 +466,11 @@ if ($iacEnabled) {
 # =============================================================================
 $rows     = [System.Collections.Generic.List[object]]::new()   # flat, for the CSV
 $findings = [System.Collections.Generic.List[object]]::new()   # structured, for Phases 4 and 5
+
+# IaC provenance rows, collected in this same loop and written to their OWN file. Built here
+# rather than reconstructed from the findings afterwards: deriving the same thing twice is how
+# two outputs drift apart and start quietly disagreeing with each other.
+$provenanceRows = [System.Collections.Generic.List[object]]::new()
 
 # Denominators, counted as the loop runs rather than reconstructed afterwards. ASSESSED is the
 # number this script actually applied rules to - external Microsoft and third-party principals
@@ -949,24 +1031,30 @@ foreach ($id in $data.Identities) {
     # measured against a real blueprint rather than guessed at here.
     if ($iacEnabled -and -not $id.IsManagedIdentity) {
 
-        $declared = $false
+        # WHICH identifier matched is recorded, not just THAT one did. Entra hands back an
+        # object ID in some places and an application ID in others, so when somebody disputes a
+        # match the only useful answer is the actual value that matched.
+        $declared  = $false
+        $matchedOn = $null
         foreach ($candidate in $id.Id, $id.AppId) {
             if ($candidate -and $iacManagedIds.Contains(([string]$candidate).ToLower())) {
-                $declared = $true
+                $declared  = $true
+                $matchedOn = [string]$candidate
                 break
             }
         }
+
+        # Derived once, above the branch, because both the finding below AND the provenance row
+        # at the end of this block need it. Reusing the codes rather than re-deriving privilege
+        # means the two rules can never disagree.
+        $codes = $f | ForEach-Object { $_.Code }
+        $isPrivileged = ($codes -contains 'EXCESSIVE_SCOPE_ESCALATION') -or
+                        ($codes -contains 'HIGH_IMPACT_PERMISSION')
 
         if ($declared) {
             $f.Add((New-Finding 'IAC_MANAGED' 'Info' 'Declared in Terraform state - has a repository owner, a commit justification and a reviewable change history. Good practice.'))
         }
         else {
-            # Was anything serious already found on this identity? Reuse the codes rather
-            # than re-deriving privilege, so the two rules can never disagree.
-            $codes = $f | ForEach-Object { $_.Code }
-            $isPrivileged = ($codes -contains 'EXCESSIVE_SCOPE_ESCALATION') -or
-                            ($codes -contains 'HIGH_IMPACT_PERMISSION')
-
             if ($isPrivileged) {
                 $f.Add((New-Finding 'UNMANAGED_PRIVILEGED' 'High' 'Holds privileged permissions and is NOT declared in infrastructure-as-code. No commit, no review, no intended state to detect drift against.'))
             }
@@ -974,6 +1062,18 @@ foreach ($id in $data.Identities) {
                 $f.Add((New-Finding 'UNMANAGED_IDENTITY' 'Low' 'Not declared in infrastructure-as-code. Created outside any reviewable configuration. Coverage gap rather than a vulnerability on its own.'))
             }
         }
+
+        # One row per assessed identity for the separate provenance output.
+        $provenanceRows.Add([pscustomobject]@{
+            ObjectId      = $id.Id
+            AppId         = $id.AppId
+            DisplayName   = $id.DisplayName
+            ObjectClass   = $id.ObjectClass
+            IsAgent       = [bool]$id.IsAgentClassified
+            DeclaredInIaC = $declared
+            MatchedOn     = $matchedOn
+            Privileged    = $isPrivileged
+        })
     }
 
 
@@ -1181,6 +1281,62 @@ $rows | Export-Csv -Path $CsvPath -NoTypeInformation -Encoding UTF8
     }
     Findings     = $findings
 } | ConvertTo-Json -Depth 10 | Set-Content -Path $FindingsPath -Encoding UTF8
+
+
+# =============================================================================
+# IaC PROVENANCE - A SEPARATE OUTPUT, NOT A SECTION OF THE FINDINGS FILE
+# =============================================================================
+# Added 17 November 2026.
+#
+# nhi_findings.json answers "what is true of every identity in the tenant".
+# THIS file answers "which of them are declared in Terraform, per which state file, read when".
+#
+# They were one file until now and the cost was specific: the coverage percentage had no source
+# recorded anywhere. A number without its source is not evidence, and that percentage is
+# precisely the figure someone will quote back at you in a room where you cannot go and check.
+#
+# WRITTEN EVEN WHEN NO STATE FILE WAS SUPPLIED, carrying Assessed = false. A missing file is
+# ambiguous - it could mean "not assessed" or "the stage crashed before it got there". A file
+# that says NOT ASSESSED in writing is unambiguous. Same discipline as the NOT ASSESSED line in
+# the control report, and the same discipline as OWNER_STATE_UNRESOLVED: never let "I could not
+# check" be read as "there is nothing to find".
+
+# Computed before the hash literal rather than inline, so the two long strings stay readable.
+$scopeLimit = if ($iacEnabled) {
+    'Coverage is measured ONLY against the state file named in Source. Identities declared in any other Terraform configuration, workspace or backend are counted as undeclared here, because this run had no way to see them. The defensible claim is coverage against the state files supplied - NOT tenant-wide infrastructure-as-code coverage.'
+} else {
+    'NOT ASSESSED. No Terraform state file was supplied, so provenance was not evaluated. This is an absence of assessment, not a finding of 0% coverage.'
+}
+
+$provenanceDoc = [ordered]@{
+    Schema      = 'nhi-provenance/1'
+    RunId       = $RunIdentifier
+    GeneratedAt = (Get-Date).ToUniversalTime().ToString('o')
+    Assessed    = $iacEnabled
+    ScopeLimit  = $scopeLimit
+
+    # Null when nothing was assessed - which is itself the answer to "which file?"
+    Source          = $iacSource
+
+    # What the state file claims, independent of the tenant. Useful on its own: an entry here
+    # with no matching identity in the tenant means Terraform believes it owns something that
+    # does not exist, which is drift in the opposite direction to the one this tool usually
+    # reports.
+    DeclaredInState = @($iacDeclared)
+
+    # What the tenant holds, each row marked declared or not. This is the join.
+    Identities      = @($provenanceRows)
+
+    Summary     = [ordered]@{
+        IdentitiesAssessed = @($provenanceRows).Count
+        DeclaredInIaC      = @($provenanceRows | Where-Object { $_.DeclaredInIaC }).Count
+        Undeclared         = @($provenanceRows | Where-Object { -not $_.DeclaredInIaC }).Count
+        PrivilegedAssessed = @($provenanceRows | Where-Object { $_.Privileged }).Count
+        PrivilegedDeclared = @($provenanceRows | Where-Object { $_.Privileged -and $_.DeclaredInIaC }).Count
+    }
+}
+
+$provenanceDoc | ConvertTo-Json -Depth 10 | Set-Content -Path $ProvenancePath -Encoding UTF8
 
 
 # =============================================================================

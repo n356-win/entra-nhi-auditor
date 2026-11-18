@@ -307,7 +307,7 @@ includes the owner and repository IDs; the old name-only form will not match. Fo
 repository's `main` branch, the subject is:
 
 ```
-repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
+repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 ```
 
 **The subject is the whole control.** Keep it pinned to the intended branch or environment;

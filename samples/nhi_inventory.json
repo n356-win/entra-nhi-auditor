@@ -15264,7 +15264,7 @@
         {
           "Name": "nhi-scan-main-branch-only",
           "Issuer": "https://token.actions.githubusercontent.com",
-          "Subject": "repo:n365-win@334335333/identity-posture-scanner@1427631018:ref:refs/heads/main"
+          "Subject": "repo:n365-win@OWNER_ID/identity-posture-scanner@REPO_ID:ref:refs/heads/main"
         }
       ],
       "SignInAudience": "AzureADMyOrg",

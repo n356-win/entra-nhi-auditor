@@ -62,6 +62,12 @@ param(
 
     [string]$RunDir         = (Join-Path $OutputRoot "runs\$RunId"),
     [string]$FindingsPath   = (Join-Path $RunDir 'nhi_findings.json'),
+
+    # IaC provenance, written by script 03 as its own output. Separate file because it is a
+    # separate claim resting on separate evidence - see the header of 03. This report reads it
+    # so the coverage figure can be printed next to the state file that produced it.
+    [string]$ProvenancePath = (Join-Path $RunDir 'nhi_provenance.json'),
+
     [string]$ReportPath     = (Join-Path $RunDir 'control_report.md'),
 
     # The control map is NOT per-run. It is the mapping itself, versioned with the repo, and
@@ -686,6 +692,37 @@ if ($findingsDoc.PSObject.Properties['Parameters'] -and
 
 $md.Add("## Infrastructure-as-code provenance")
 $md.Add("")
+
+# WHICH STATE FILE, READ WHEN - added 17 November 2026.
+#
+# Before this, the report printed a coverage percentage and nothing whatsoever about where it
+# came from. The first reasonable question a reviewer asks - "measured against what?" - had no
+# answer anywhere in the document. nhi_provenance.json carries the path, the modification time
+# and a SHA256; this prints them immediately above the number they produced, because a figure
+# and its source get separated the moment someone copies one line into a slide.
+$provDoc = $null
+if (Test-Path $ProvenancePath) {
+    try   { $provDoc = Get-Content -Path $ProvenancePath -Raw | ConvertFrom-Json }
+    catch { Write-Warning "Could not read provenance file at '$ProvenancePath': $($_.Exception.Message)" }
+}
+
+if ($provDoc -and $provDoc.Assessed -and $provDoc.Source) {
+    $src = $provDoc.Source
+    $md.Add('**Source of this assessment**')
+    $md.Add('')
+    $md.Add('| | |')
+    $md.Add('|---|---|')
+    $md.Add(('| State file | `{0}` |' -f $src.Path))
+    $md.Add(('| Last written (UTC) | {0} |' -f $src.LastWriteTimeUtc))
+    $md.Add(('| Read at (UTC) | {0} |' -f $src.ReadAtUtc))
+    $md.Add(('| SHA256 | `{0}` |' -f $src.Sha256))
+    $md.Add(('| Resources in state | {0} managed, {1} data - **data entries are lookups and are NOT counted** |' -f $src.ResourcesManaged, $src.ResourcesData))
+    $md.Add(('| Identity objects declared | {0} |' -f $src.IdentityObjects))
+    $md.Add('')
+    $md.Add('Full detail, including which identifier matched each identity: `nhi_provenance.json`.')
+    $md.Add('')
+}
+
 if (-not $iacCheckRecorded) {
     $md.Add('**NOT ASSESSED.** This findings file does not record whether Terraform state was checked.')
     $md.Add('Re-run script 03, supplying `-TerraformStatePath` to assess IaC provenance.')
@@ -717,6 +754,21 @@ if (-not $iacCheckRecorded) {
     $md.Add(('Across all assessed tenant-owned identities: {0}% ({1} of {2}). **This is a different claim** ' -f $pctAll, $allDecl, $iacRows.Count) +
             'and should not be quoted as the privileged figure.')
     $md.Add('')
+
+    # THE SCOPE LIMIT, IN THE REPORT RATHER THAN ONLY IN CONVERSATION.
+    #
+    # One state file describes ONE Terraform configuration. A real organisation has several,
+    # and an identity declared in a configuration this run never saw is indistinguishable here
+    # from one created by hand in the portal. Printing the percentage without this paragraph
+    # invites it to be read as tenant-wide coverage, which is a claim the evidence does not
+    # support. The limit is stated where the number is, not in a footnote.
+    $md.Add('> **What this figure does and does not cover.** Coverage is measured only against the')
+    $md.Add('> state file named above. Identities declared in any other Terraform configuration,')
+    $md.Add('> workspace or backend are counted as undeclared here, because this run had no way to')
+    $md.Add('> see them. **The defensible claim is coverage against the state files supplied** -')
+    $md.Add('> everything outside them is NOT ASSESSED rather than undeclared.')
+    $md.Add('')
+
     $md.Add('An identity declared in code carries a repository owner, a commit justification, a reviewed')
     $md.Add('change history and an intended state against which drift is detectable. One created in the')
     $md.Add('portal carries none of the four, and nothing in the directory records the difference.')

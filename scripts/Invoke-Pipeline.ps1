@@ -72,7 +72,20 @@ param(
 
     # Azure RBAC for managed identities. Needs a management.azure.com token - see 01's help.
     [switch]$IncludeAzureRbac,
-    [string]$ArmAccessToken
+    [string]$ArmAccessToken,
+
+    # TERRAFORM STATE - PASSED ON EVERY RUN. Added 17 November 2026.
+    #
+    # It used to be an optional argument to script 03 that nobody remembered, so almost every
+    # run produced NOT ASSESSED for provenance and the coverage figure simply never appeared in
+    # a report. A capability that depends on somebody remembering a parameter is a capability
+    # you do not actually have - the same reasoning as the control-map fingerprint replacing a
+    # hand-maintained version number.
+    #
+    # Default: the lab's own state file, resolved relative to this script. Pass a path for a
+    # different configuration, or -NoTerraformState to skip provenance on purpose.
+    [string]$TerraformStatePath,
+    [switch]$NoTerraformState
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,6 +108,37 @@ Write-Host ""
 Write-Host "  Run id : $runId" -ForegroundColor Cyan
 Write-Host "  Tenant : $((Get-MgContext).TenantId)" -ForegroundColor DarkGray
 Write-Host "  Output : $runDir" -ForegroundColor DarkGray
+
+# --- Terraform state: resolve ONCE, here, and say what was resolved ------------------------
+# Resolved in the pipeline rather than defaulted inside script 03, for the same reason the run
+# id is computed here: the decision belongs to the thing that orchestrates the run, and it has
+# to be visible in the banner. A default buried two scripts down is a default nobody knows is
+# in force.
+$statePath = $null
+if (-not $NoTerraformState) {
+    if ($TerraformStatePath) {
+        $statePath = $TerraformStatePath
+    } else {
+        $defaultState = Join-Path $scriptRoot '..\terraform\terraform.tfstate'
+        if (Test-Path $defaultState) { $statePath = (Resolve-Path $defaultState).Path }
+    }
+}
+
+if ($statePath) {
+    if (-not (Test-Path $statePath)) {
+        throw "Terraform state not found at '$statePath'. Fix the path, or pass -NoTerraformState to run without provenance."
+    }
+    $stateItem = Get-Item $statePath
+    $stateAge  = [Math]::Round(((Get-Date) - $stateItem.LastWriteTime).TotalDays, 1)
+    Write-Host "  IaC    : $($stateItem.FullName)" -ForegroundColor DarkGray
+    Write-Host "           last written $stateAge day$(if($stateAge -eq 1){''}else{'s'}) ago" -ForegroundColor DarkGray
+} elseif ($NoTerraformState) {
+    Write-Host "  IaC    : SKIPPED by -NoTerraformState. Provenance will report NOT ASSESSED." -ForegroundColor DarkYellow
+} else {
+    Write-Host "  IaC    : no state file found. Provenance will report NOT ASSESSED -" -ForegroundColor DarkYellow
+    Write-Host "           a statement that nobody looked, NOT a finding of 0% coverage." -ForegroundColor DarkYellow
+}
+
 Write-Host ""
 
 $started = Get-Date
@@ -120,7 +164,8 @@ $started = Get-Date
 # So the pipeline refuses to start while they exist. Not a warning - warnings scroll past, and
 # this one already did. The fix is one delete and the message says exactly which files.
 $shadowNames = @(
-    'nhi_inventory.json', 'nhi_findings.json', 'nhi_ownership.csv', 'control_report.md',
+    'nhi_inventory.json', 'nhi_findings.json', 'nhi_ownership.csv', 'nhi_provenance.json',
+    'control_report.md',
     'attestation_records.json', 'attestation_results.json', 'attestation_report.md'
 )
 $shadows = @($shadowNames | ForEach-Object {
@@ -189,7 +234,10 @@ if ($IncludeAzureRbac)   { $a01.IncludeAzureRbac   = $true; $a01.ArmAccessToken 
 Invoke-Stage -Name '1/4  Inventory  (reads the tenant)' -Script '01-Get-NHIInventory.ps1' -StageParameters $a01
 
 # --- 03 - classify -------------------------------------------------------------------------
-Invoke-Stage -Name '2/4  Ownership and findings' -Script '03-New-OwnershipMap.ps1' -StageParameters @{ RunId = $runId }
+$a03 = @{ RunId = $runId }
+if ($statePath) { $a03.TerraformStatePath = $statePath }
+
+Invoke-Stage -Name '2/4  Ownership, findings and IaC provenance' -Script '03-New-OwnershipMap.ps1' -StageParameters $a03
 
 # --- 04 - attestation, only when asked -----------------------------------------------------
 if ($IncludeAttestation) {
@@ -209,7 +257,11 @@ Invoke-Stage -Name '4/4  Control report' -Script '05-New-ControlReport.ps1' -Sta
 # Asserted, not assumed. A pipeline that prints "complete" without checking its own outputs is
 # the same failure as a control report that prints NOT APPLICABLE for a population it never
 # enumerated: a confident statement about something nobody looked at.
-$expected = @('nhi_inventory.json', 'nhi_ownership.csv', 'nhi_findings.json', 'control_report.md')
+# nhi_provenance.json is expected UNCONDITIONALLY, including when no state file was supplied -
+# script 03 writes it carrying Assessed = false. That is the point: a missing file is ambiguous
+# between "not assessed" and "the stage died", and this assertion should be able to tell the
+# difference between a run that chose not to look and a run that broke.
+$expected = @('nhi_inventory.json', 'nhi_ownership.csv', 'nhi_findings.json', 'nhi_provenance.json', 'control_report.md')
 $missing  = @($expected | Where-Object { -not (Test-Path (Join-Path $runDir $_)) })
 
 Write-Host "──────────────────────────────────────────────────────────────" -ForegroundColor DarkGray

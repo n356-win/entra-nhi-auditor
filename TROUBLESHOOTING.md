@@ -48,7 +48,7 @@ exchange failed with `AADSTS700213: No matching federated identity record found`
 asserted:
 
 ```text
-repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
+repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 ```
 
 **Expected:** Entra exchanges the assertion for a Microsoft Graph token.
@@ -62,7 +62,7 @@ credential to use:
 
 ```text
 Issuer:   https://token.actions.githubusercontent.com
-Subject:  repo:n356-win@334335333/entra-nhi-auditor@1434198990:ref:refs/heads/main
+Subject:  repo:n356-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
 Audience: api://AzureADTokenExchange
 ```
 
