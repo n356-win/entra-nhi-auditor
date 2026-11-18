@@ -70,11 +70,13 @@ jobs:
 
       - name: Connect to Graph (workload identity federation)
         shell: pwsh
-        env:
-          # Requesting the OIDC token requires both of these. The audience must match the
-          # federated credential configured in Entra.
-          ACTIONS_ID_TOKEN_REQUEST_URL:   ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        # NO env: block for ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN. The runner injects both
+        # into every step's process because this workflow declares `id-token: write`, and
+        # they are NOT in the `env` expression context - so forwarding them as
+        # `${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}` resolves to an EMPTY STRING. That block
+        # looked like the OIDC wiring while doing nothing, and printed two blank values in
+        # the log directly above the real failure. Same shape of bug as the rest of this
+        # project: a line that reads as configuration and is actually a no-op.
         run: |
           ./scripts/00b-Connect-Pipeline.ps1 `
             -ClientId $env:AZURE_CLIENT_ID `
@@ -215,16 +217,31 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // RUN_ID is written to GITHUB_ENV by the Scan step, which is SKIPPED whenever an
+            // earlier step fails - so process.env.RUN_ID is empty for exactly the failures
+            // this step exists to report. It read 'unknown run' every time, which made four
+            // consecutive weekly failures indistinguishable from each other and gave the
+            // reader no way to find the logs the body told them to check. context.runId is
+            // always populated, so the issue can identify and link its own run.
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
             await github.rest.issues.create({
               owner:  context.repo.owner,
               repo:   context.repo.repo,
-              title:  `NHI scan FAILED - ${process.env.RUN_ID || 'unknown run'}`,
+              title:  `NHI scan FAILED - run ${context.runId}`,
               labels: ['nhi-scan', 'broken'],
               body: [
                 `The scheduled scan did not complete. **There is no assessment for this week.**`,
                 ``,
-                `Treat this as unknown posture, not as a clean result. Check the workflow logs`,
-                `for this run - the most common causes are an expired federated credential`,
-                `subject mismatch or a revoked application permission.`
+                `Treat this as unknown posture, not as a clean result.`,
+                ``,
+                `Run: ${runUrl}`,
+                `Commit: \`${context.sha}\``,
+                ``,
+                `The most common causes are a federated credential subject mismatch`,
+                `(\`AADSTS700213\` in the connect step - GitHub's subject includes immutable`,
+                `owner and repository IDs) or a revoked application permission. The connect`,
+                `step prints the exact subject GitHub asserted; compare it against the`,
+                `federated credential before changing anything else.`
               ].join('\n')
             });
