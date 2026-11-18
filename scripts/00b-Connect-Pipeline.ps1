@@ -81,8 +81,9 @@
          The SUBJECT is the whole control: do not broaden it to a wildcard to make exchange
          errors disappear.
 
-    THIS SCRIPT HAS NEVER BEEN RUN. Like everything else in this folder it was written without
-    a runner to test against. Expect to fix something. Write down what.
+    RUN HISTORY. First successful token exchange 18 Nov 2026 (GitHub Actions run 44277685856),
+    after a federated credential subject mismatch was corrected. Earlier runs reached this script
+    and failed at the exchange; see TROUBLESHOOTING.md.
 #>
 
 [CmdletBinding()]

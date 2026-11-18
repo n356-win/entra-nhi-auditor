@@ -90,7 +90,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Get-MgContext)) { throw "Not connected. Run 00-Connect-Lab.ps1 first." }
+if (-not (Get-MgContext)) {
+    throw @"
+Not connected to Microsoft Graph.
+
+Run 00-Connect-Lab.ps1 (local) or 00b-Connect-Pipeline.ps1 (pipeline) first, in the SAME
+PowerShell session. The Graph token lives in module memory and does not survive into a new
+process, so connecting in one GitHub Actions step and scanning in the next will land here.
+"@
+}
 
 # ONE RUN ID FOR THE WHOLE CHAIN, computed once here.
 #

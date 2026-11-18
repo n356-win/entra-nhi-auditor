@@ -95,7 +95,8 @@
     LAB TENANTS ONLY. This creates users and rewrites ownership. Running it anywhere that
     matters would be a serious incident, which is why nothing here is implicit.
 
-    UNRUN. Like everything else in this folder.
+    UNRUN. This script has no run behind it. Other scripts in this folder have since run
+    against a live tenant; this one has not.
 #>
 
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
