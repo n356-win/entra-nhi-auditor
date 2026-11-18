@@ -109,9 +109,18 @@ it:
 az ad app federated-credential list --id <AZURE_CLIENT_ID>
 ```
 
+It was resolved here by renaming the GitHub account to match the credential, which also works
+and costs more: the subject contains the login, so either side can be moved to meet the other.
+Editing the credential is the cheaper direction. Renaming invalidates every existing link and
+clone URL and frees the old name for someone else to claim.
+
 **At scale:** an exact-match string with a hand-typed account name in it will eventually be typed
 wrong, and the error names the whole subject rather than the character that differs. Diff the
-asserted value against the stored one instead of comparing them by eye.
+asserted value against the stored one instead of comparing them by eye. Note also that the
+subject is rename-sensitive in both directions: the immutable IDs sit alongside the login and
+repository name, not in place of them, so any rename of either breaks authentication until the
+credential is updated. See *What "immutable" does and does not mean here* in
+`reference/PIPELINE-IMPLEMENTATION.md`.
 
 **At scale:** A name-only or stale subject blocks authentication before Graph permissions are
 evaluated. Copy the subject from the workflow's OIDC diagnostic and compare all three

@@ -323,6 +323,34 @@ The current workflow does not declare an environment; it is pinned to the `main`
 above. If you change the workflow trigger or add an environment, use the resulting exact subject
 from the log and update the federated credential to match.
 
+### What "immutable" does and does not mean here
+
+The immutable-ID format adds the numeric owner and repository IDs **alongside** the names, not
+instead of them:
+
+```
+repo:n365-win@OWNER_ID/entra-nhi-auditor@REPO_ID:ref:refs/heads/main
+     ^^^^^^^^ login    ^^^^^^^^^^^^^^^^^ name
+              ^^^^^^^^                   ^^^^^^^ the immutable parts
+```
+
+Entra matches the whole string exactly, so the login and the repository name are still load
+bearing. The IDs mean a renamed repository cannot be impersonated by someone who claims the
+freed name: the IDs will not match. They do **not** make the subject survive a rename of your
+own. Rename the account or the repository and GitHub asserts a new subject, the stored one stops
+matching, and every run fails with `AADSTS700213` until the credential is updated.
+
+Three consequences worth planning for:
+
+- A rename is a credential change. Update the federated credential in the same maintenance
+  window, or the scheduled scan goes dark until someone reads the failure issue.
+- The freed name is claimable. After a rename, the old `OWNER/REPO` path is available to anyone.
+  A name-only subject would have followed the name to the new owner; the ID-qualified subject
+  will not, which is the reason to use this format.
+- Fixing a mismatch means editing the subject, not renaming anything. Renaming the account to
+  match a mistyped credential also clears the error, and costs every existing link, clone URL
+  and reference to the old name.
+
 ### The experiment: do this, it is the write-up
 
 1. Configure the exact `main` subject above and run the workflow.
